@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+// Package notes.v1 содержит API для работы с заметками
+package notes.v1;
+
+option go_package = "notes/v1;notesv1";
+
+import "google/protobuf/timestamp.proto";
+
+// NotesService предоставляет методы для управления заметками
+service NotesService {
+  // CreateNote создает новую заметку
+  rpc CreateNote(CreateNoteRequest) returns (CreateNoteResponse);
+  
+  // GetNote возвращает заметку по её UUID
+  rpc GetNote(GetNoteRequest) returns (GetNoteResponse);
+  
+  // ListNotes возвращает список всех заметок
+  rpc ListNotes(ListNotesRequest) returns (ListNotesResponse);
+  
+  // UpdateNote обновляет существующую заметку
+  rpc UpdateNote(UpdateNoteRequest) returns (UpdateNoteResponse);
+  
+  // DeleteNote удаляет заметку по UUID
+  rpc DeleteNote(DeleteNoteRequest) returns (DeleteNoteResponse);
+}
+
+// Запрос на создание заметки
+message CreateNoteRequest {
+  string title = 1;    // Заголовок заметки
+  string content = 2;  // Содержание заметки
+}
+
+// Ответ с созданной заметкой
+message CreateNoteResponse {
+  Note note = 1;
+}
+
+// Запрос на получение заметки по UUID
+message GetNoteRequest {
+  string id = 1;  // UUID заметки
+}
+
+// Ответ с заметкой
+message GetNoteResponse {
+  Note note = 1;
+}
+
+// Запрос на получение списка заметок
+message ListNotesRequest {
+  // Пока без фильтров, можно расширить в будущем
+}
+
+// Ответ со списком заметок
+message ListNotesResponse {
+  repeated Note notes = 1;
+}
+
+// Запрос на обновление заметки
+message UpdateNoteRequest {
+  string id = 1;       // UUID заметки
+  string title = 2;    // Новый заголовок (опционально)
+  string content = 3;  // Новое содержание (опционально)
+}
+
+// Ответ с обновленной заметкой
+message UpdateNoteResponse {
+  Note note = 1;
+}
+
+// Запрос на удаление заметки
+message DeleteNoteRequest {
+  string id = 1;  // UUID заметки
+}
+
+// Ответ на удаление заметки
+message DeleteNoteResponse {
+  // Пустой ответ, успех определяется через gRPC статус
+}
+
+// Note представляет заметку
+message Note {
+  string id = 1;                              // UUID заметки
+  string title = 2;                           // Заголовок заметки
+  string content = 3;                         // Содержание заметки
+  google.protobuf.Timestamp created_at = 4;   // Дата создания
+  google.protobuf.Timestamp updated_at = 5;   // Дата последнего обновления
+}
+
