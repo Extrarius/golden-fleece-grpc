@@ -1,0 +1,22 @@
+version: v1
+
+deps:
+  - github.com/protocolbuffers/protobuf
+
+generate:
+  inputs:
+    - directory: "proto"
+  plugins:
+    - path: bin/protoc-gen-go
+      out: pkg/proto
+      opt:
+        - paths=source_relative
+    - path: bin/protoc-gen-go-grpc
+      out: pkg/proto
+      opt:
+        - paths=source_relative
+        - require_unimplemented_servers=false
+
+lint:
+  use:
+    - DEFAULT
