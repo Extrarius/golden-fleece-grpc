@@ -6,6 +6,7 @@ package notes.v1;
 option go_package = "notes/v1;notesv1";
 
 import "google/protobuf/timestamp.proto";
+import "proto/buf/validate/validate.proto";
 
 // NotesService предоставляет методы для управления заметками
 service NotesService {
@@ -27,8 +28,15 @@ service NotesService {
 
 // Запрос на создание заметки
 message CreateNoteRequest {
-  string title = 1;    // Заголовок заметки
-  string content = 2;  // Содержание заметки
+  string title = 1 [
+    (buf.validate.field).string = {
+      min_len: 5,
+      max_len: 255
+    }
+  ];    // Заголовок заметки (обязательное, минимум 5 символов, максимум 255)
+  string content = 2 [
+    (buf.validate.field).string.min_len = 10
+  ];  // Содержание заметки (обязательное, минимум 10 символов)
 }
 
 // Ответ с созданной заметкой
@@ -85,5 +93,12 @@ message Note {
   string content = 3;                         // Содержание заметки
   google.protobuf.Timestamp created_at = 4;   // Дата создания
   google.protobuf.Timestamp updated_at = 5;   // Дата последнего обновления
+}
+
+// ErrorDetails содержит детальную информацию об ошибке
+message ErrorDetails {
+  string reason = 1;              // Причина ошибки
+  string internal_error_code = 2; // Внутренний код ошибки
+  string note_id = 3;             // ID заметки, связанной с ошибкой
 }
 
