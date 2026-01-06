@@ -3,14 +3,16 @@ package grpc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"notes-service/internal/converter"
 	"notes-service/internal/repository/memory"
 	svc "notes-service/internal/service"
 	notesv1 "notes-service/pkg/proto/notes/v1"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Handler реализует gRPC сервер для NotesService
@@ -48,6 +50,20 @@ func (h *Handler) GetNote(ctx context.Context, req *notesv1.GetNoteRequest) (*no
 	// Вызываем бизнес-логику
 	note, err := h.noteService.Get(ctx, req.GetId())
 	if err != nil {
+		// Если заметка не найдена, возвращаем детализированную ошибку
+		if errors.Is(err, memory.ErrNoteNotFound) {
+			st := status.New(codes.NotFound, "note not found")
+			errorDetails := &notesv1.ErrorDetails{
+				Reason: fmt.Sprintf("Note with ID %s was searched but not found in DB", req.GetId()),
+				NoteId: req.GetId(),
+			}
+			st, errWithDetails := st.WithDetails(errorDetails)
+			if errWithDetails != nil {
+				// Если не удалось добавить Details, просто возвращаем ошибку без деталей
+				return nil, status.Errorf(codes.NotFound, "note not found: %v", err)
+			}
+			return nil, st.Err()
+		}
 		return nil, handleError(err)
 	}
 
@@ -102,7 +118,7 @@ func (h *Handler) DeleteNote(ctx context.Context, req *notesv1.DeleteNoteRequest
 	return &notesv1.DeleteNoteResponse{}, nil
 }
 
-// handleError конвертирует внутренние ошибки в gRPC статусы
+// handleError конвертирует внутренние ошибки в gRPC статусы с детализацией
 func handleError(err error) error {
 	if err == nil {
 		return nil
@@ -110,15 +126,39 @@ func handleError(err error) error {
 
 	// Проверяем специфичные ошибки репозитория
 	if errors.Is(err, memory.ErrNoteNotFound) {
-		return status.Errorf(codes.NotFound, "note not found: %v", err)
+		st := status.New(codes.NotFound, "note not found")
+		errorDetails := &notesv1.ErrorDetails{
+			Reason:            "The requested note was not found in the database",
+			InternalErrorCode: "NOTE_NOT_FOUND",
+		}
+		st, _ = st.WithDetails(errorDetails)
+		return st.Err()
 	}
 
 	// Проверяем ошибки валидации (содержат "cannot be empty")
 	errMsg := strings.ToLower(err.Error())
 	if strings.Contains(errMsg, "cannot be empty") || strings.Contains(errMsg, "invalid") {
-		return status.Errorf(codes.InvalidArgument, "%v", err)
+		st := status.New(codes.InvalidArgument, err.Error())
+		errorDetails := &notesv1.ErrorDetails{
+			Reason:            fmt.Sprintf("Validation failed: %s", err.Error()),
+			InternalErrorCode: "VALIDATION_ERROR",
+		}
+		// Попытаемся извлечь поле из сообщения об ошибке
+		if strings.Contains(errMsg, "title") {
+			errorDetails.Reason = "Title field validation failed: " + err.Error()
+		} else if strings.Contains(errMsg, "id") {
+			errorDetails.Reason = "ID field validation failed: " + err.Error()
+		}
+		st, _ = st.WithDetails(errorDetails)
+		return st.Err()
 	}
 
 	// Все остальные ошибки - Internal
-	return status.Errorf(codes.Internal, "internal error: %v", err)
+	st := status.New(codes.Internal, "internal error")
+	errorDetails := &notesv1.ErrorDetails{
+		Reason:            fmt.Sprintf("An internal error occurred: %v", err),
+		InternalErrorCode: "INTERNAL_ERROR",
+	}
+	st, _ = st.WithDetails(errorDetails)
+	return st.Err()
 }

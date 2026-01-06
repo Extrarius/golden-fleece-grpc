@@ -9,6 +9,7 @@
 package notesv1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -27,8 +28,8 @@ const (
 // Запрос на создание заметки
 type CreateNoteRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Title         string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`     // Заголовок заметки
-	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"` // Содержание заметки
+	Title         string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`     // Заголовок заметки (обязательное, минимум 5 символов, максимум 255)
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"` // Содержание заметки (обязательное, минимум 10 символов)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -559,14 +560,77 @@ func (x *Note) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// ErrorDetails содержит детальную информацию об ошибке
+type ErrorDetails struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Reason            string                 `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`                                                  // Причина ошибки
+	InternalErrorCode string                 `protobuf:"bytes,2,opt,name=internal_error_code,json=internalErrorCode,proto3" json:"internal_error_code,omitempty"` // Внутренний код ошибки
+	NoteId            string                 `protobuf:"bytes,3,opt,name=note_id,json=noteId,proto3" json:"note_id,omitempty"`                                    // ID заметки, связанной с ошибкой
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ErrorDetails) Reset() {
+	*x = ErrorDetails{}
+	mi := &file_proto_notes_v1_notes_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ErrorDetails) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ErrorDetails) ProtoMessage() {}
+
+func (x *ErrorDetails) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_notes_v1_notes_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ErrorDetails.ProtoReflect.Descriptor instead.
+func (*ErrorDetails) Descriptor() ([]byte, []int) {
+	return file_proto_notes_v1_notes_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ErrorDetails) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *ErrorDetails) GetInternalErrorCode() string {
+	if x != nil {
+		return x.InternalErrorCode
+	}
+	return ""
+}
+
+func (x *ErrorDetails) GetNoteId() string {
+	if x != nil {
+		return x.NoteId
+	}
+	return ""
+}
+
 var File_proto_notes_v1_notes_proto protoreflect.FileDescriptor
 
 const file_proto_notes_v1_notes_proto_rawDesc = "" +
 	"\n" +
-	"\x1aproto/notes/v1/notes.proto\x12\bnotes.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"C\n" +
-	"\x11CreateNoteRequest\x12\x14\n" +
-	"\x05title\x18\x01 \x01(\tR\x05title\x12\x18\n" +
-	"\acontent\x18\x02 \x01(\tR\acontent\"8\n" +
+	"\x1aproto/notes/v1/notes.proto\x12\bnotes.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!proto/buf/validate/validate.proto\"X\n" +
+	"\x11CreateNoteRequest\x12 \n" +
+	"\x05title\x18\x01 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x05\x18\xff\x01R\x05title\x12!\n" +
+	"\acontent\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\n" +
+	"R\acontent\"8\n" +
 	"\x12CreateNoteResponse\x12\"\n" +
 	"\x04note\x18\x01 \x01(\v2\x0e.notes.v1.NoteR\x04note\" \n" +
 	"\x0eGetNoteRequest\x12\x0e\n" +
@@ -592,7 +656,11 @@ const file_proto_notes_v1_notes_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt2\xef\x02\n" +
+	"updated_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"o\n" +
+	"\fErrorDetails\x12\x16\n" +
+	"\x06reason\x18\x01 \x01(\tR\x06reason\x12.\n" +
+	"\x13internal_error_code\x18\x02 \x01(\tR\x11internalErrorCode\x12\x17\n" +
+	"\anote_id\x18\x03 \x01(\tR\x06noteId2\xef\x02\n" +
 	"\fNotesService\x12G\n" +
 	"\n" +
 	"CreateNote\x12\x1b.notes.v1.CreateNoteRequest\x1a\x1c.notes.v1.CreateNoteResponse\x12>\n" +
@@ -615,7 +683,7 @@ func file_proto_notes_v1_notes_proto_rawDescGZIP() []byte {
 	return file_proto_notes_v1_notes_proto_rawDescData
 }
 
-var file_proto_notes_v1_notes_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_proto_notes_v1_notes_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_proto_notes_v1_notes_proto_goTypes = []any{
 	(*CreateNoteRequest)(nil),     // 0: notes.v1.CreateNoteRequest
 	(*CreateNoteResponse)(nil),    // 1: notes.v1.CreateNoteResponse
@@ -628,15 +696,16 @@ var file_proto_notes_v1_notes_proto_goTypes = []any{
 	(*DeleteNoteRequest)(nil),     // 8: notes.v1.DeleteNoteRequest
 	(*DeleteNoteResponse)(nil),    // 9: notes.v1.DeleteNoteResponse
 	(*Note)(nil),                  // 10: notes.v1.Note
-	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
+	(*ErrorDetails)(nil),          // 11: notes.v1.ErrorDetails
+	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
 }
 var file_proto_notes_v1_notes_proto_depIdxs = []int32{
 	10, // 0: notes.v1.CreateNoteResponse.note:type_name -> notes.v1.Note
 	10, // 1: notes.v1.GetNoteResponse.note:type_name -> notes.v1.Note
 	10, // 2: notes.v1.ListNotesResponse.notes:type_name -> notes.v1.Note
 	10, // 3: notes.v1.UpdateNoteResponse.note:type_name -> notes.v1.Note
-	11, // 4: notes.v1.Note.created_at:type_name -> google.protobuf.Timestamp
-	11, // 5: notes.v1.Note.updated_at:type_name -> google.protobuf.Timestamp
+	12, // 4: notes.v1.Note.created_at:type_name -> google.protobuf.Timestamp
+	12, // 5: notes.v1.Note.updated_at:type_name -> google.protobuf.Timestamp
 	0,  // 6: notes.v1.NotesService.CreateNote:input_type -> notes.v1.CreateNoteRequest
 	2,  // 7: notes.v1.NotesService.GetNote:input_type -> notes.v1.GetNoteRequest
 	4,  // 8: notes.v1.NotesService.ListNotes:input_type -> notes.v1.ListNotesRequest
@@ -665,7 +734,7 @@ func file_proto_notes_v1_notes_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_notes_v1_notes_proto_rawDesc), len(file_proto_notes_v1_notes_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

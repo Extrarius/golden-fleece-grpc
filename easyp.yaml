@@ -16,6 +16,8 @@ generate:
       opt:
         - paths=source_relative
         - require_unimplemented_servers=false
+    # Примечание: protovalidate использует runtime валидацию через библиотеку buf.build/go/protovalidate
+    # Отдельный плагин protoc-gen-validate может не понадобиться, так как валидация выполняется в runtime
 
 lint:
   use:

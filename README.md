@@ -16,6 +16,10 @@ Notes Service — это базовый микросервис, предоста
 - ✅ gRPC reflection для отладки (grpcurl, grpcui)
 - ✅ Graceful shutdown
 - ✅ Clean Architecture с разделением на слои
+- ✅ Интерцепторы: Logger, Validate, Auth
+- ✅ Валидация запросов через protovalidate
+- ✅ Детализированная обработка ошибок с ErrorDetails
+- ✅ Конфигурация сервера с KeepAlive и ограничениями
 
 ## 🏗️ Архитектура
 
@@ -169,11 +173,13 @@ grpcurl -plaintext localhost:50051 list notes.v1.NotesService
 ##### Создание заметки
 
 ```bash
-grpcurl -plaintext -d '{
+grpcurl -plaintext -H "authorization: Bearer my-secret-token" -d '{
   "title": "Моя первая заметка",
-  "content": "Это содержимое заметки"
+  "content": "Это содержимое заметки с достаточным количеством символов"
 }' localhost:50051 notes.v1.NotesService/CreateNote
 ```
+
+**Примечание**: Все запросы требуют заголовок авторизации. См. раздел [🔐 Авторизация](#-авторизация) ниже.
 
 Пример ответа:
 
@@ -192,7 +198,7 @@ grpcurl -plaintext -d '{
 ##### Получение заметки по ID
 
 ```bash
-grpcurl -plaintext -d '{
+grpcurl -plaintext -H "authorization: Bearer my-secret-token" -d '{
   "id": "550e8400-e29b-41d4-a716-446655440000"
 }' localhost:50051 notes.v1.NotesService/GetNote
 ```
@@ -200,13 +206,13 @@ grpcurl -plaintext -d '{
 ##### Получение списка всех заметок
 
 ```bash
-grpcurl -plaintext -d '{}' localhost:50051 notes.v1.NotesService/ListNotes
+grpcurl -plaintext -H "authorization: Bearer my-secret-token" -d '{}' localhost:50051 notes.v1.NotesService/ListNotes
 ```
 
 или проще:
 
 ```bash
-grpcurl -plaintext localhost:50051 notes.v1.NotesService/ListNotes
+grpcurl -plaintext -H "authorization: Bearer my-secret-token" localhost:50051 notes.v1.NotesService/ListNotes
 ```
 
 Пример ответа:
@@ -235,17 +241,17 @@ grpcurl -plaintext localhost:50051 notes.v1.NotesService/ListNotes
 ##### Обновление заметки
 
 ```bash
-grpcurl -plaintext -d '{
+grpcurl -plaintext -H "authorization: Bearer my-secret-token" -d '{
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "title": "Обновленный заголовок",
-  "content": "Обновленное содержимое"
+  "content": "Обновленное содержимое с достаточным количеством символов"
 }' localhost:50051 notes.v1.NotesService/UpdateNote
 ```
 
 ##### Удаление заметки
 
 ```bash
-grpcurl -plaintext -d '{
+grpcurl -plaintext -H "authorization: Bearer my-secret-token" -d '{
   "id": "550e8400-e29b-41d4-a716-446655440000"
 }' localhost:50051 notes.v1.NotesService/DeleteNote
 ```
@@ -267,6 +273,199 @@ grpcurl -plaintext -d '{
 3. Откройте браузер по адресу, который покажет grpcui (обычно `http://localhost:52485`)
 
 4. Выберите метод и заполните параметры через удобный веб-интерфейс
+
+5. **Важно**: В grpcui необходимо добавить метаданные для авторизации. В разделе "Metadata" добавьте:
+   - Key: `authorization`
+   - Value: `Bearer my-secret-token`
+
+## 🔐 Авторизация
+
+Все запросы к API требуют авторизации через Bearer токен.
+
+### Токен по умолчанию
+
+По умолчанию используется токен: `my-secret-token`
+
+### Пример использования
+
+```bash
+grpcurl -plaintext -H "authorization: Bearer my-secret-token" \
+  -d '{"title":"Test Title","content":"This is a test content with more than 10 characters"}' \
+  localhost:50051 notes.v1.NotesService/CreateNote
+```
+
+### Ошибки авторизации
+
+- **Без токена**: `Unauthenticated` - "authorization header not provided"
+- **Неверный токен**: `Unauthenticated` - "invalid token"
+- **Неправильный формат**: `Unauthenticated` - "invalid authorization header format" (должен быть `Bearer <token>`)
+
+## ✅ Валидация
+
+Сервис использует **protovalidate** для автоматической валидации входящих запросов на основе правил, определенных в proto файлах.
+
+### Правила валидации для CreateNote
+
+При создании заметки (`CreateNoteRequest`):
+
+- **`title`**: 
+  - Обязательное поле
+  - Минимум 5 символов
+  - Максимум 255 символов
+  
+- **`content`**: 
+  - Обязательное поле
+  - Минимум 10 символов
+
+### Пример валидного запроса
+
+```bash
+grpcurl -plaintext -H "authorization: Bearer my-secret-token" \
+  -d '{"title":"Valid Title Here","content":"This is a valid content with more than 10 characters"}' \
+  localhost:50051 notes.v1.NotesService/CreateNote
+```
+
+### Примеры невалидных запросов
+
+**Короткий title** (< 5 символов):
+```bash
+grpcurl -plaintext -H "authorization: Bearer my-secret-token" \
+  -d '{"title":"Test","content":"This is a test content with more than 10 characters"}' \
+  localhost:50051 notes.v1.NotesService/CreateNote
+# Ошибка: InvalidArgument - "validation error: title: value length must be at least 5 characters"
+```
+
+**Короткий content** (< 10 символов):
+```bash
+grpcurl -plaintext -H "authorization: Bearer my-secret-token" \
+  -d '{"title":"Valid Title Here","content":"Short"}' \
+  localhost:50051 notes.v1.NotesService/CreateNote
+# Ошибка: InvalidArgument - "validation error: content: value length must be at least 10 characters"
+```
+
+## 🔧 Интерцепторы
+
+Сервис использует три gRPC интерцептора, которые выполняются в следующем порядке:
+
+### 1. Logger Interceptor
+- **Расположение**: `internal/api/grpc/interceptors/logger.go`
+- **Функция**: Логирует все входящие запросы с информацией о:
+  - Методе (FullMethod)
+  - Времени выполнения (duration)
+  - Результате (успех/ошибка)
+  - Статусе ошибки (если есть)
+
+**Пример лога**:
+```
+Incoming request: /notes.v1.NotesService/CreateNote
+Request /notes.v1.NotesService/CreateNote completed successfully (duration: 2.5ms)
+```
+
+### 2. Validate Interceptor
+- **Расположение**: `internal/api/grpc/interceptors/validate.go`
+- **Функция**: Валидирует входящие запросы используя protovalidate
+- **Правила**: Правила валидации определяются в proto файлах через аннотации `buf.validate.field`
+- **Ошибки**: Возвращает `InvalidArgument` при провале валидации
+
+### 3. Auth Interceptor
+- **Расположение**: `internal/api/grpc/interceptors/auth.go`
+- **Функция**: Проверяет авторизацию через Bearer токен
+- **Токен по умолчанию**: `my-secret-token`
+- **Ошибки**: Возвращает `Unauthenticated` при отсутствии или неверном токене
+
+## ⚙️ Конфигурация сервера
+
+Сервер настроен с оптимальными параметрами для production-подобного окружения:
+
+### MaxConcurrentStreams
+- **Значение**: `25`
+- **Описание**: Ограничивает количество одновременных RPC стримов
+- **Цель**: Защита сервера от перегрузки и контроль использования ресурсов
+
+### KeepAlive параметры
+
+```go
+MaxConnectionIdle:     30 * time.Minute  // Закрытие неактивных соединений
+MaxConnectionAge:      1 * time.Hour      // Максимальное время жизни соединения
+MaxConnectionAgeGrace: 5 * time.Second    // Время ожидания активных запросов
+Time:                  10 * time.Minute   // Время между пингами
+Timeout:               20 * time.Second   // Время ожидания ответа на ping
+```
+
+**Описание**:
+- **MaxConnectionIdle**: Неактивные соединения закрываются через 30 минут
+- **MaxConnectionAge**: Соединения ротируются каждый час для профилактики деградации
+- **MaxConnectionAgeGrace**: Перед закрытием соединения сервер ждет 5 секунд на завершение активных запросов
+- **Time**: Ping отправляется каждые 10 минут для проверки активности
+- **Timeout**: Ожидание ответа на ping в течение 20 секунд перед разрывом соединения
+
+## 📊 Детализированные ошибки
+
+Сервис возвращает детализированную информацию об ошибках через `ErrorDetails` в gRPC статусе.
+
+### Структура ErrorDetails
+
+```protobuf
+message ErrorDetails {
+  string reason = 1;              // Причина ошибки
+  string internal_error_code = 2; // Внутренний код ошибки
+  string note_id = 3;             // ID заметки (если применимо)
+}
+```
+
+### Типы ошибок с Details
+
+#### NotFound
+Когда запрашиваемая заметка не найдена:
+
+```bash
+grpcurl -plaintext -H "authorization: Bearer my-secret-token" \
+  -d '{"id":"non-existent-id"}' \
+  localhost:50051 notes.v1.NotesService/GetNote
+```
+
+**Ответ**:
+- Код: `NotFound`
+- Сообщение: `note not found`
+- Details: `ErrorDetails` с полями:
+  - `reason`: "Note with ID {id} was searched but not found in DB"
+  - `note_id`: ID запрошенной заметки
+
+#### InvalidArgument (Валидация)
+При ошибках валидации:
+
+**Ответ**:
+- Код: `InvalidArgument`
+- Сообщение: Детали ошибки валидации
+- Details: `ErrorDetails` с полями:
+  - `reason`: Детальное описание ошибки валидации
+  - `internal_error_code`: "VALIDATION_ERROR"
+
+#### Internal
+Для внутренних ошибок:
+
+**Ответ**:
+- Код: `Internal`
+- Сообщение: "internal error"
+- Details: `ErrorDetails` с полями:
+  - `reason`: Описание внутренней ошибки
+  - `internal_error_code`: "INTERNAL_ERROR"
+
+### Пример обработки на клиенте
+
+```go
+st := status.Convert(err)
+if st.Code() == codes.NotFound {
+    for _, detail := range st.Details() {
+        if errorDetails, ok := detail.(*notesv1.ErrorDetails); ok {
+            fmt.Printf("Error reason: %s\n", errorDetails.Reason)
+            fmt.Printf("Note ID: %s\n", errorDetails.NoteId)
+        }
+    }
+}
+```
+
+Полный пример клиента доступен в `cmd/client/main.go`.
 
 ## 🔧 Команды Taskfile
 
