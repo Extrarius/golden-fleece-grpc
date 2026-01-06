@@ -74,7 +74,7 @@ tasks:
 
   generate:
     desc: "Генерация Go кода из proto файлов"
-    deps: [ install-tools, install-validate ]
+    deps: [ install-tools ]
     cmds:
       - '{{.EASYP}} generate --path proto'
 
