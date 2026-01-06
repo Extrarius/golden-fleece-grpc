@@ -6,7 +6,7 @@ package notes.v1;
 option go_package = "notes/v1;notesv1";
 
 import "google/protobuf/timestamp.proto";
-import "proto/buf/validate/validate.proto";
+import "buf/validate/validate.proto";
 
 // NotesService предоставляет методы для управления заметками
 service NotesService {

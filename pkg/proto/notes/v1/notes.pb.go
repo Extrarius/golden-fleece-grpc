@@ -625,7 +625,7 @@ var File_proto_notes_v1_notes_proto protoreflect.FileDescriptor
 
 const file_proto_notes_v1_notes_proto_rawDesc = "" +
 	"\n" +
-	"\x1aproto/notes/v1/notes.proto\x12\bnotes.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!proto/buf/validate/validate.proto\"X\n" +
+	"\x1aproto/notes/v1/notes.proto\x12\bnotes.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bbuf/validate/validate.proto\"X\n" +
 	"\x11CreateNoteRequest\x12 \n" +
 	"\x05title\x18\x01 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x05\x18\xff\x01R\x05title\x12!\n" +

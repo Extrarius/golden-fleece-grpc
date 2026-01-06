@@ -1,7 +1,9 @@
 version: v1
 
 deps:
-  - github.com/protocolbuffers/protobuf
+  - github.com/bufbuild/protovalidate@v0.3.1
+  # Примечание: protobuf (google/protobuf/*) доступен через protovalidate, 
+  # поэтому не требуется явно добавлять github.com/protocolbuffers/protobuf
 
 generate:
   inputs:
