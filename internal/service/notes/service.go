@@ -15,13 +15,20 @@ var _ svc.NoteService = (*service)(nil)
 
 type service struct {
 	noteRepository repository.NoteRepository
+	eventService   *EventService
 }
 
 // NewNoteService создает новый экземпляр сервиса для работы с заметками
 func NewNoteService(noteRepository repository.NoteRepository) svc.NoteService {
 	return &service{
 		noteRepository: noteRepository,
+		eventService:   NewEventService(),
 	}
+}
+
+// GetEventService возвращает сервис событий для подписки
+func (s *service) GetEventService() *EventService {
+	return s.eventService
 }
 
 // Create создает новую заметку с указанными title и content
@@ -45,6 +52,9 @@ func (s *service) Create(ctx context.Context, title, content string) (model.Note
 	if err != nil {
 		return model.Note{}, err
 	}
+
+	// Публикуем событие о создании заметки для подписчиков
+	s.eventService.Publish(createdNote)
 
 	return createdNote, nil
 }

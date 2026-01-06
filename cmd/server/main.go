@@ -78,6 +78,10 @@ func main() {
 			interceptors.ValidateUnaryInterceptor, // Валидирует запросы по правилам из proto
 			interceptors.AuthUnaryInterceptor,     // Проверяет авторизацию токена
 		),
+		// Стриминговые интерцепторы: логирование каждого сообщения в стриме
+		grpc.ChainStreamInterceptor(
+			interceptors.StreamInterceptor, // Логирует каждое сообщение в стримах (RecvMsg/SendMsg)
+		),
 	)
 
 	// Регистрация сервиса

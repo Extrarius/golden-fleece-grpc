@@ -24,6 +24,15 @@ service NotesService {
   
   // DeleteNote удаляет заметку по UUID
   rpc DeleteNote(DeleteNoteRequest) returns (DeleteNoteResponse);
+  
+  // SubscribeToEvents подписывается на события создания заметок
+  rpc SubscribeToEvents(SubscribeToEventsRequest) returns (stream EventResponse);
+  
+  // UploadMetrics принимает поток метрик и возвращает агрегированную статистику
+  rpc UploadMetrics(stream MetricRequest) returns (SummaryResponse);
+  
+  // Chat - двунаправленный стрим для асинхронного обмена сообщениями
+  rpc Chat(stream ChatMessage) returns (stream ChatMessage);
 }
 
 // Запрос на создание заметки
@@ -100,5 +109,69 @@ message ErrorDetails {
   string reason = 1;              // Причина ошибки
   string internal_error_code = 2; // Внутренний код ошибки
   string note_id = 3;             // ID заметки, связанной с ошибкой
+}
+
+// Запрос на подписку на события
+message SubscribeToEventsRequest {
+  // Пустой запрос или можно добавить user_id для фильтрации
+}
+
+// Ответ со стримом событий
+message EventResponse {
+  oneof event {
+    // Приветственное сообщение или health-check
+    HealthCheck health_check = 1;
+    // Событие создания новой заметки
+    NoteCreatedEvent note_created = 2;
+  }
+}
+
+// HealthCheck сообщение для поддержания соединения
+message HealthCheck {
+  string message = 1;                           // Сообщение health-check
+  google.protobuf.Timestamp timestamp = 2;      // Временная метка
+}
+
+// Событие создания новой заметки
+message NoteCreatedEvent {
+  string note_id = 1;  // ID созданной заметки
+  Note note = 2;       // Опционально: можно отправлять только ID или всю заметку
+}
+
+// Запрос на загрузку метрики (клиентский стриминг)
+message MetricRequest {
+  double value = 1;  // Значение метрики
+  string name = 2;   // Опционально: название метрики
+}
+
+// Ответ со статистикой по метрикам
+message SummaryResponse {
+  double sum = 1;      // Сумма всех метрик
+  double average = 2;  // Среднее значение
+  int64 count = 3;     // Количество метрик
+}
+
+// Сообщение в чате (bidirectional streaming)
+message ChatMessage {
+  string correlation_id = 1;  // ID для корреляции запросов и ответов
+  oneof content {
+    // Обычное текстовое сообщение
+    ChatTextMessage text_message = 2;
+    // Бизнесовая ошибка (не разрывающая соединение)
+    ChatError error = 3;
+  }
+}
+
+// Текстовое сообщение в чате
+message ChatTextMessage {
+  string text = 1;                           // Текст сообщения
+  google.protobuf.Timestamp timestamp = 2;   // Временная метка сообщения
+}
+
+// Ошибка в чате (бизнесовая, не разрывающая соединение)
+message ChatError {
+  string code = 1;      // Код ошибки (например, "VALIDATION_ERROR", "RATE_LIMIT")
+  string message = 2;   // Сообщение об ошибке
+  string details = 3;   // Дополнительные детали ошибки
 }
 
