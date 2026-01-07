@@ -61,11 +61,38 @@ func main() {
 	// Добавляем метаданные с токеном авторизации
 	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", fmt.Sprintf("Bearer %s", token))
 
-	// Тестируем обработку детализированных ошибок
-	testErrorHandling(ctx, client)
+	// Выбираем, какой тест запустить через переменную окружения или аргумент
+	testType := os.Getenv("TEST_TYPE")
+	if testType == "" && len(os.Args) > 1 {
+		testType = os.Args[1]
+	}
 
-	// Тестируем успешный запрос (опционально)
-	// testSuccessfulRequest(ctx, client)
+	switch testType {
+	case "streaming", "stream":
+		// Тестируем server-side streaming
+		testSubscribeToEvents(ctx, client)
+	case "upload", "metrics", "client-streaming":
+		// Тестируем client-side streaming - загрузку метрик
+		testUploadMetrics(ctx, client)
+	case "upload-empty", "metrics-empty":
+		// Тестируем client-side streaming с пустым стримом
+		testUploadMetricsEmpty(ctx, client)
+	case "chat", "bidirectional", "bidi":
+		// Тестируем bidirectional streaming - асинхронный чат
+		testChat(ctx, client)
+	case "error":
+		// Тестируем обработку детализированных ошибок
+		testErrorHandling(ctx, client)
+	case "success":
+		// Тестируем успешный запрос
+		testSuccessfulRequest(ctx, client)
+	default:
+		// По умолчанию тестируем streaming
+		log.Println("No TEST_TYPE specified, testing streaming by default")
+		log.Println("Available test types: streaming, upload/metrics/client-streaming, chat/bidirectional/bidi, error, success")
+		log.Println("Usage: TEST_TYPE=streaming go run . OR go run . streaming")
+		testSubscribeToEvents(ctx, client)
+	}
 }
 
 // testErrorHandling тестирует обработку детализированных ошибок

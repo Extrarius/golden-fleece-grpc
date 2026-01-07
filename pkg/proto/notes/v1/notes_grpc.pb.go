@@ -21,11 +21,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	NotesService_CreateNote_FullMethodName = "/notes.v1.NotesService/CreateNote"
-	NotesService_GetNote_FullMethodName    = "/notes.v1.NotesService/GetNote"
-	NotesService_ListNotes_FullMethodName  = "/notes.v1.NotesService/ListNotes"
-	NotesService_UpdateNote_FullMethodName = "/notes.v1.NotesService/UpdateNote"
-	NotesService_DeleteNote_FullMethodName = "/notes.v1.NotesService/DeleteNote"
+	NotesService_CreateNote_FullMethodName        = "/notes.v1.NotesService/CreateNote"
+	NotesService_GetNote_FullMethodName           = "/notes.v1.NotesService/GetNote"
+	NotesService_ListNotes_FullMethodName         = "/notes.v1.NotesService/ListNotes"
+	NotesService_UpdateNote_FullMethodName        = "/notes.v1.NotesService/UpdateNote"
+	NotesService_DeleteNote_FullMethodName        = "/notes.v1.NotesService/DeleteNote"
+	NotesService_SubscribeToEvents_FullMethodName = "/notes.v1.NotesService/SubscribeToEvents"
+	NotesService_UploadMetrics_FullMethodName     = "/notes.v1.NotesService/UploadMetrics"
+	NotesService_Chat_FullMethodName              = "/notes.v1.NotesService/Chat"
 )
 
 // NotesServiceClient is the client API for NotesService service.
@@ -44,6 +47,12 @@ type NotesServiceClient interface {
 	UpdateNote(ctx context.Context, in *UpdateNoteRequest, opts ...grpc.CallOption) (*UpdateNoteResponse, error)
 	// DeleteNote удаляет заметку по UUID
 	DeleteNote(ctx context.Context, in *DeleteNoteRequest, opts ...grpc.CallOption) (*DeleteNoteResponse, error)
+	// SubscribeToEvents подписывается на события создания заметок
+	SubscribeToEvents(ctx context.Context, in *SubscribeToEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[EventResponse], error)
+	// UploadMetrics принимает поток метрик и возвращает агрегированную статистику
+	UploadMetrics(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[MetricRequest, SummaryResponse], error)
+	// Chat - двунаправленный стрим для асинхронного обмена сообщениями
+	Chat(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ChatMessage, ChatMessage], error)
 }
 
 type notesServiceClient struct {
@@ -104,6 +113,51 @@ func (c *notesServiceClient) DeleteNote(ctx context.Context, in *DeleteNoteReque
 	return out, nil
 }
 
+func (c *notesServiceClient) SubscribeToEvents(ctx context.Context, in *SubscribeToEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[EventResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &NotesService_ServiceDesc.Streams[0], NotesService_SubscribeToEvents_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SubscribeToEventsRequest, EventResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type NotesService_SubscribeToEventsClient = grpc.ServerStreamingClient[EventResponse]
+
+func (c *notesServiceClient) UploadMetrics(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[MetricRequest, SummaryResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &NotesService_ServiceDesc.Streams[1], NotesService_UploadMetrics_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[MetricRequest, SummaryResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type NotesService_UploadMetricsClient = grpc.ClientStreamingClient[MetricRequest, SummaryResponse]
+
+func (c *notesServiceClient) Chat(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ChatMessage, ChatMessage], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &NotesService_ServiceDesc.Streams[2], NotesService_Chat_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ChatMessage, ChatMessage]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type NotesService_ChatClient = grpc.BidiStreamingClient[ChatMessage, ChatMessage]
+
 // NotesServiceServer is the server API for NotesService service.
 // All implementations must embed UnimplementedNotesServiceServer
 // for forward compatibility.
@@ -120,6 +174,12 @@ type NotesServiceServer interface {
 	UpdateNote(context.Context, *UpdateNoteRequest) (*UpdateNoteResponse, error)
 	// DeleteNote удаляет заметку по UUID
 	DeleteNote(context.Context, *DeleteNoteRequest) (*DeleteNoteResponse, error)
+	// SubscribeToEvents подписывается на события создания заметок
+	SubscribeToEvents(*SubscribeToEventsRequest, grpc.ServerStreamingServer[EventResponse]) error
+	// UploadMetrics принимает поток метрик и возвращает агрегированную статистику
+	UploadMetrics(grpc.ClientStreamingServer[MetricRequest, SummaryResponse]) error
+	// Chat - двунаправленный стрим для асинхронного обмена сообщениями
+	Chat(grpc.BidiStreamingServer[ChatMessage, ChatMessage]) error
 	mustEmbedUnimplementedNotesServiceServer()
 }
 
@@ -144,6 +204,15 @@ func (UnimplementedNotesServiceServer) UpdateNote(context.Context, *UpdateNoteRe
 }
 func (UnimplementedNotesServiceServer) DeleteNote(context.Context, *DeleteNoteRequest) (*DeleteNoteResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteNote not implemented")
+}
+func (UnimplementedNotesServiceServer) SubscribeToEvents(*SubscribeToEventsRequest, grpc.ServerStreamingServer[EventResponse]) error {
+	return status.Error(codes.Unimplemented, "method SubscribeToEvents not implemented")
+}
+func (UnimplementedNotesServiceServer) UploadMetrics(grpc.ClientStreamingServer[MetricRequest, SummaryResponse]) error {
+	return status.Error(codes.Unimplemented, "method UploadMetrics not implemented")
+}
+func (UnimplementedNotesServiceServer) Chat(grpc.BidiStreamingServer[ChatMessage, ChatMessage]) error {
+	return status.Error(codes.Unimplemented, "method Chat not implemented")
 }
 func (UnimplementedNotesServiceServer) mustEmbedUnimplementedNotesServiceServer() {}
 func (UnimplementedNotesServiceServer) testEmbeddedByValue()                      {}
@@ -256,6 +325,31 @@ func _NotesService_DeleteNote_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NotesService_SubscribeToEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeToEventsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(NotesServiceServer).SubscribeToEvents(m, &grpc.GenericServerStream[SubscribeToEventsRequest, EventResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type NotesService_SubscribeToEventsServer = grpc.ServerStreamingServer[EventResponse]
+
+func _NotesService_UploadMetrics_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(NotesServiceServer).UploadMetrics(&grpc.GenericServerStream[MetricRequest, SummaryResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type NotesService_UploadMetricsServer = grpc.ClientStreamingServer[MetricRequest, SummaryResponse]
+
+func _NotesService_Chat_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(NotesServiceServer).Chat(&grpc.GenericServerStream[ChatMessage, ChatMessage]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type NotesService_ChatServer = grpc.BidiStreamingServer[ChatMessage, ChatMessage]
+
 // NotesService_ServiceDesc is the grpc.ServiceDesc for NotesService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -284,6 +378,23 @@ var NotesService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NotesService_DeleteNote_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SubscribeToEvents",
+			Handler:       _NotesService_SubscribeToEvents_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "UploadMetrics",
+			Handler:       _NotesService_UploadMetrics_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "Chat",
+			Handler:       _NotesService_Chat_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "proto/notes/v1/notes.proto",
 }
