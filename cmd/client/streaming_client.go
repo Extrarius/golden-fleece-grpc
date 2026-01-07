@@ -66,13 +66,21 @@ func testSubscribeToEvents(ctx context.Context, client notesv1.NotesServiceClien
 		case *notesv1.EventResponse_NoteCreated:
 			noteCreatedCount++
 			log.Printf("\n🎉 New note created event #%d:", noteCreatedCount)
-			log.Printf("   Note ID: %s", event.NoteCreated.NoteId)
-			if event.NoteCreated.Note != nil {
-				log.Printf("   Title: %s", event.NoteCreated.Note.Title)
-				log.Printf("   Content: %s", event.NoteCreated.Note.Content)
-				if event.NoteCreated.Note.CreatedAt != nil {
-					log.Printf("   Created at: %v", event.NoteCreated.Note.CreatedAt.AsTime())
+
+			// Проверяем payload через oneof
+			switch payload := event.NoteCreated.Payload.(type) {
+			case *notesv1.NoteCreatedEvent_NoteId:
+				log.Printf("   Note ID: %s", payload.NoteId)
+			case *notesv1.NoteCreatedEvent_Note:
+				note := payload.Note
+				log.Printf("   Note ID: %s", note.Id)
+				log.Printf("   Title: %s", note.Title)
+				log.Printf("   Content: %s", note.Content)
+				if note.CreatedAt != nil {
+					log.Printf("   Created at: %v", note.CreatedAt.AsTime())
 				}
+			default:
+				log.Printf("   Unknown payload type")
 			}
 
 		default:
@@ -245,7 +253,7 @@ func testChat(ctx context.Context, client notesv1.NotesServiceClient) {
 			case *notesv1.ChatMessage_Error:
 				// Получена бизнесовая ошибка от сервера (не разрывающая соединение)
 				errorMsg := content.Error
-				log.Printf("❌ Received error: correlation_id=%s, code=%s, message=%s, details=%s",
+				log.Printf("❌ Received error: correlation_id=%s, code=%v, message=%s, details=%s",
 					correlationID, errorMsg.GetCode(), errorMsg.GetMessage(), errorMsg.GetDetails())
 				// Обработка ошибки без разрыва соединения - продолжаем работу
 				// Можно добавить логику обработки конкретных типов ошибок

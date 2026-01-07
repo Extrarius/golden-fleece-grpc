@@ -133,9 +133,12 @@ message HealthCheck {
 }
 
 // Событие создания новой заметки
+// Подробности об использовании oneof: см. README.md раздел "NoteCreatedEvent: oneof"
 message NoteCreatedEvent {
-  string note_id = 1;  // ID созданной заметки
-  Note note = 2;       // Опционально: можно отправлять только ID или всю заметку
+  oneof payload {
+    string note_id = 1;  // ID созданной заметки (легковесный вариант)
+    Note note = 2;       // Полная заметка (подробный вариант)
+  }
 }
 
 // Запрос на загрузку метрики (клиентский стриминг)
@@ -168,10 +171,19 @@ message ChatTextMessage {
   google.protobuf.Timestamp timestamp = 2;   // Временная метка сообщения
 }
 
+// ChatErrorCode определяет детерминированные коды ошибок для чата
+// Подробности: см. README.md раздел "ChatError: использование enum"
+enum ChatErrorCode {
+  CHAT_ERROR_CODE_UNSPECIFIED = 0;  // Не указан (использовать не рекомендуется)
+  CHAT_ERROR_CODE_VALIDATION_ERROR = 1;  // Ошибка валидации сообщения
+  CHAT_ERROR_CODE_RATE_LIMIT = 2;   // Превышен лимит запросов
+  CHAT_ERROR_CODE_INVALID_MESSAGE = 3;  // Некорректное сообщение
+}
+
 // Ошибка в чате (бизнесовая, не разрывающая соединение)
 message ChatError {
-  string code = 1;      // Код ошибки (например, "VALIDATION_ERROR", "RATE_LIMIT")
-  string message = 2;   // Сообщение об ошибке
-  string details = 3;   // Дополнительные детали ошибки
+  ChatErrorCode code = 1;    // Детерминированный код ошибки (enum)
+  string message = 2;        // Сообщение об ошибке
+  string details = 3;        // Дополнительные детали ошибки
 }
 

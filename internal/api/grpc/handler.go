@@ -190,12 +190,14 @@ func (h *Handler) SubscribeToEvents(req *notesv1.SubscribeToEventsRequest, strea
 		case note := <-eventCh:
 			// note уже имеет тип model.Note из канала
 			// Конвертируем в proto и отправляем событие
+			// Используем полную заметку (более информативный вариант)
 			protoNote := converter.ModelToProto(note)
 			if err := stream.Send(&notesv1.EventResponse{
 				Event: &notesv1.EventResponse_NoteCreated{
 					NoteCreated: &notesv1.NoteCreatedEvent{
-						NoteId: note.ID,
-						Note:   protoNote,
+						Payload: &notesv1.NoteCreatedEvent_Note{
+							Note: protoNote,
+						},
 					},
 				},
 			}); err != nil {
@@ -297,7 +299,7 @@ func (h *Handler) Chat(stream notesv1.NotesService_ChatServer) error {
 						CorrelationId: correlationID,
 						Content: &notesv1.ChatMessage_Error{
 							Error: &notesv1.ChatError{
-								Code:    "VALIDATION_ERROR",
+								Code:    notesv1.ChatErrorCode_CHAT_ERROR_CODE_VALIDATION_ERROR,
 								Message: "Message text cannot be empty",
 								Details: "The text field must contain at least one non-whitespace character",
 							},
@@ -333,7 +335,7 @@ func (h *Handler) Chat(stream notesv1.NotesService_ChatServer) error {
 
 			case *notesv1.ChatMessage_Error:
 				// Получена ошибка от клиента (если клиент отправляет ошибки)
-				log.Printf("📥 Received error from client: correlation_id=%s, code=%s, message=%s",
+				log.Printf("📥 Received error from client: correlation_id=%s, code=%v, message=%s",
 					correlationID, content.Error.GetCode(), content.Error.GetMessage())
 				// Можно обработать ошибку от клиента, но обычно клиент не отправляет ошибки
 
@@ -344,7 +346,7 @@ func (h *Handler) Chat(stream notesv1.NotesService_ChatServer) error {
 					CorrelationId: correlationID,
 					Content: &notesv1.ChatMessage_Error{
 						Error: &notesv1.ChatError{
-							Code:    "INVALID_MESSAGE",
+							Code:    notesv1.ChatErrorCode_CHAT_ERROR_CODE_INVALID_MESSAGE,
 							Message: "Message content is missing",
 							Details: "The message must contain either text_message or error",
 						},

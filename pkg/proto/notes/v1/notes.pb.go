@@ -25,6 +25,60 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ChatErrorCode определяет детерминированные коды ошибок для чата
+// Подробности: см. README.md раздел "ChatError: использование enum"
+type ChatErrorCode int32
+
+const (
+	ChatErrorCode_CHAT_ERROR_CODE_UNSPECIFIED      ChatErrorCode = 0 // Не указан (использовать не рекомендуется)
+	ChatErrorCode_CHAT_ERROR_CODE_VALIDATION_ERROR ChatErrorCode = 1 // Ошибка валидации сообщения
+	ChatErrorCode_CHAT_ERROR_CODE_RATE_LIMIT       ChatErrorCode = 2 // Превышен лимит запросов
+	ChatErrorCode_CHAT_ERROR_CODE_INVALID_MESSAGE  ChatErrorCode = 3 // Некорректное сообщение
+)
+
+// Enum value maps for ChatErrorCode.
+var (
+	ChatErrorCode_name = map[int32]string{
+		0: "CHAT_ERROR_CODE_UNSPECIFIED",
+		1: "CHAT_ERROR_CODE_VALIDATION_ERROR",
+		2: "CHAT_ERROR_CODE_RATE_LIMIT",
+		3: "CHAT_ERROR_CODE_INVALID_MESSAGE",
+	}
+	ChatErrorCode_value = map[string]int32{
+		"CHAT_ERROR_CODE_UNSPECIFIED":      0,
+		"CHAT_ERROR_CODE_VALIDATION_ERROR": 1,
+		"CHAT_ERROR_CODE_RATE_LIMIT":       2,
+		"CHAT_ERROR_CODE_INVALID_MESSAGE":  3,
+	}
+)
+
+func (x ChatErrorCode) Enum() *ChatErrorCode {
+	p := new(ChatErrorCode)
+	*p = x
+	return p
+}
+
+func (x ChatErrorCode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ChatErrorCode) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_notes_v1_notes_proto_enumTypes[0].Descriptor()
+}
+
+func (ChatErrorCode) Type() protoreflect.EnumType {
+	return &file_proto_notes_v1_notes_proto_enumTypes[0]
+}
+
+func (x ChatErrorCode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ChatErrorCode.Descriptor instead.
+func (ChatErrorCode) EnumDescriptor() ([]byte, []int) {
+	return file_proto_notes_v1_notes_proto_rawDescGZIP(), []int{0}
+}
+
 // Запрос на создание заметки
 type CreateNoteRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -797,10 +851,14 @@ func (x *HealthCheck) GetTimestamp() *timestamppb.Timestamp {
 }
 
 // Событие создания новой заметки
+// Подробности об использовании oneof: см. README.md раздел "NoteCreatedEvent: oneof"
 type NoteCreatedEvent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NoteId        string                 `protobuf:"bytes,1,opt,name=note_id,json=noteId,proto3" json:"note_id,omitempty"` // ID созданной заметки
-	Note          *Note                  `protobuf:"bytes,2,opt,name=note,proto3" json:"note,omitempty"`                   // Опционально: можно отправлять только ID или всю заметку
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*NoteCreatedEvent_NoteId
+	//	*NoteCreatedEvent_Note
+	Payload       isNoteCreatedEvent_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -835,19 +893,46 @@ func (*NoteCreatedEvent) Descriptor() ([]byte, []int) {
 	return file_proto_notes_v1_notes_proto_rawDescGZIP(), []int{15}
 }
 
+func (x *NoteCreatedEvent) GetPayload() isNoteCreatedEvent_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
 func (x *NoteCreatedEvent) GetNoteId() string {
 	if x != nil {
-		return x.NoteId
+		if x, ok := x.Payload.(*NoteCreatedEvent_NoteId); ok {
+			return x.NoteId
+		}
 	}
 	return ""
 }
 
 func (x *NoteCreatedEvent) GetNote() *Note {
 	if x != nil {
-		return x.Note
+		if x, ok := x.Payload.(*NoteCreatedEvent_Note); ok {
+			return x.Note
+		}
 	}
 	return nil
 }
+
+type isNoteCreatedEvent_Payload interface {
+	isNoteCreatedEvent_Payload()
+}
+
+type NoteCreatedEvent_NoteId struct {
+	NoteId string `protobuf:"bytes,1,opt,name=note_id,json=noteId,proto3,oneof"` // ID созданной заметки (легковесный вариант)
+}
+
+type NoteCreatedEvent_Note struct {
+	Note *Note `protobuf:"bytes,2,opt,name=note,proto3,oneof"` // Полная заметка (подробный вариант)
+}
+
+func (*NoteCreatedEvent_NoteId) isNoteCreatedEvent_Payload() {}
+
+func (*NoteCreatedEvent_Note) isNoteCreatedEvent_Payload() {}
 
 // Запрос на загрузку метрики (клиентский стриминг)
 type MetricRequest struct {
@@ -1112,9 +1197,9 @@ func (x *ChatTextMessage) GetTimestamp() *timestamppb.Timestamp {
 // Ошибка в чате (бизнесовая, не разрывающая соединение)
 type ChatError struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`       // Код ошибки (например, "VALIDATION_ERROR", "RATE_LIMIT")
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"` // Сообщение об ошибке
-	Details       string                 `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"` // Дополнительные детали ошибки
+	Code          ChatErrorCode          `protobuf:"varint,1,opt,name=code,proto3,enum=notes.v1.ChatErrorCode" json:"code,omitempty"` // Детерминированный код ошибки (enum)
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`                        // Сообщение об ошибке
+	Details       string                 `protobuf:"bytes,3,opt,name=details,proto3" json:"details,omitempty"`                        // Дополнительные детали ошибки
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1149,11 +1234,11 @@ func (*ChatError) Descriptor() ([]byte, []int) {
 	return file_proto_notes_v1_notes_proto_rawDescGZIP(), []int{20}
 }
 
-func (x *ChatError) GetCode() string {
+func (x *ChatError) GetCode() ChatErrorCode {
 	if x != nil {
 		return x.Code
 	}
-	return ""
+	return ChatErrorCode_CHAT_ERROR_CODE_UNSPECIFIED
 }
 
 func (x *ChatError) GetMessage() string {
@@ -1217,10 +1302,11 @@ const file_proto_notes_v1_notes_proto_rawDesc = "" +
 	"\x05event\"a\n" +
 	"\vHealthCheck\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x128\n" +
-	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"O\n" +
-	"\x10NoteCreatedEvent\x12\x17\n" +
-	"\anote_id\x18\x01 \x01(\tR\x06noteId\x12\"\n" +
-	"\x04note\x18\x02 \x01(\v2\x0e.notes.v1.NoteR\x04note\"9\n" +
+	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"^\n" +
+	"\x10NoteCreatedEvent\x12\x19\n" +
+	"\anote_id\x18\x01 \x01(\tH\x00R\x06noteId\x12$\n" +
+	"\x04note\x18\x02 \x01(\v2\x0e.notes.v1.NoteH\x00R\x04noteB\t\n" +
+	"\apayload\"9\n" +
 	"\rMetricRequest\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\x01R\x05value\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"S\n" +
@@ -1235,11 +1321,16 @@ const file_proto_notes_v1_notes_proto_rawDesc = "" +
 	"\acontent\"_\n" +
 	"\x0fChatTextMessage\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x128\n" +
-	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"S\n" +
-	"\tChatError\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
+	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"l\n" +
+	"\tChatError\x12+\n" +
+	"\x04code\x18\x01 \x01(\x0e2\x17.notes.v1.ChatErrorCodeR\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x18\n" +
-	"\adetails\x18\x03 \x01(\tR\adetails2\xc4\x04\n" +
+	"\adetails\x18\x03 \x01(\tR\adetails*\x9b\x01\n" +
+	"\rChatErrorCode\x12\x1f\n" +
+	"\x1bCHAT_ERROR_CODE_UNSPECIFIED\x10\x00\x12$\n" +
+	" CHAT_ERROR_CODE_VALIDATION_ERROR\x10\x01\x12\x1e\n" +
+	"\x1aCHAT_ERROR_CODE_RATE_LIMIT\x10\x02\x12#\n" +
+	"\x1fCHAT_ERROR_CODE_INVALID_MESSAGE\x10\x032\xc4\x04\n" +
 	"\fNotesService\x12G\n" +
 	"\n" +
 	"CreateNote\x12\x1b.notes.v1.CreateNoteRequest\x1a\x1c.notes.v1.CreateNoteResponse\x12>\n" +
@@ -1265,66 +1356,69 @@ func file_proto_notes_v1_notes_proto_rawDescGZIP() []byte {
 	return file_proto_notes_v1_notes_proto_rawDescData
 }
 
+var file_proto_notes_v1_notes_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_proto_notes_v1_notes_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_proto_notes_v1_notes_proto_goTypes = []any{
-	(*CreateNoteRequest)(nil),        // 0: notes.v1.CreateNoteRequest
-	(*CreateNoteResponse)(nil),       // 1: notes.v1.CreateNoteResponse
-	(*GetNoteRequest)(nil),           // 2: notes.v1.GetNoteRequest
-	(*GetNoteResponse)(nil),          // 3: notes.v1.GetNoteResponse
-	(*ListNotesRequest)(nil),         // 4: notes.v1.ListNotesRequest
-	(*ListNotesResponse)(nil),        // 5: notes.v1.ListNotesResponse
-	(*UpdateNoteRequest)(nil),        // 6: notes.v1.UpdateNoteRequest
-	(*UpdateNoteResponse)(nil),       // 7: notes.v1.UpdateNoteResponse
-	(*DeleteNoteRequest)(nil),        // 8: notes.v1.DeleteNoteRequest
-	(*DeleteNoteResponse)(nil),       // 9: notes.v1.DeleteNoteResponse
-	(*Note)(nil),                     // 10: notes.v1.Note
-	(*ErrorDetails)(nil),             // 11: notes.v1.ErrorDetails
-	(*SubscribeToEventsRequest)(nil), // 12: notes.v1.SubscribeToEventsRequest
-	(*EventResponse)(nil),            // 13: notes.v1.EventResponse
-	(*HealthCheck)(nil),              // 14: notes.v1.HealthCheck
-	(*NoteCreatedEvent)(nil),         // 15: notes.v1.NoteCreatedEvent
-	(*MetricRequest)(nil),            // 16: notes.v1.MetricRequest
-	(*SummaryResponse)(nil),          // 17: notes.v1.SummaryResponse
-	(*ChatMessage)(nil),              // 18: notes.v1.ChatMessage
-	(*ChatTextMessage)(nil),          // 19: notes.v1.ChatTextMessage
-	(*ChatError)(nil),                // 20: notes.v1.ChatError
-	(*timestamppb.Timestamp)(nil),    // 21: google.protobuf.Timestamp
+	(ChatErrorCode)(0),               // 0: notes.v1.ChatErrorCode
+	(*CreateNoteRequest)(nil),        // 1: notes.v1.CreateNoteRequest
+	(*CreateNoteResponse)(nil),       // 2: notes.v1.CreateNoteResponse
+	(*GetNoteRequest)(nil),           // 3: notes.v1.GetNoteRequest
+	(*GetNoteResponse)(nil),          // 4: notes.v1.GetNoteResponse
+	(*ListNotesRequest)(nil),         // 5: notes.v1.ListNotesRequest
+	(*ListNotesResponse)(nil),        // 6: notes.v1.ListNotesResponse
+	(*UpdateNoteRequest)(nil),        // 7: notes.v1.UpdateNoteRequest
+	(*UpdateNoteResponse)(nil),       // 8: notes.v1.UpdateNoteResponse
+	(*DeleteNoteRequest)(nil),        // 9: notes.v1.DeleteNoteRequest
+	(*DeleteNoteResponse)(nil),       // 10: notes.v1.DeleteNoteResponse
+	(*Note)(nil),                     // 11: notes.v1.Note
+	(*ErrorDetails)(nil),             // 12: notes.v1.ErrorDetails
+	(*SubscribeToEventsRequest)(nil), // 13: notes.v1.SubscribeToEventsRequest
+	(*EventResponse)(nil),            // 14: notes.v1.EventResponse
+	(*HealthCheck)(nil),              // 15: notes.v1.HealthCheck
+	(*NoteCreatedEvent)(nil),         // 16: notes.v1.NoteCreatedEvent
+	(*MetricRequest)(nil),            // 17: notes.v1.MetricRequest
+	(*SummaryResponse)(nil),          // 18: notes.v1.SummaryResponse
+	(*ChatMessage)(nil),              // 19: notes.v1.ChatMessage
+	(*ChatTextMessage)(nil),          // 20: notes.v1.ChatTextMessage
+	(*ChatError)(nil),                // 21: notes.v1.ChatError
+	(*timestamppb.Timestamp)(nil),    // 22: google.protobuf.Timestamp
 }
 var file_proto_notes_v1_notes_proto_depIdxs = []int32{
-	10, // 0: notes.v1.CreateNoteResponse.note:type_name -> notes.v1.Note
-	10, // 1: notes.v1.GetNoteResponse.note:type_name -> notes.v1.Note
-	10, // 2: notes.v1.ListNotesResponse.notes:type_name -> notes.v1.Note
-	10, // 3: notes.v1.UpdateNoteResponse.note:type_name -> notes.v1.Note
-	21, // 4: notes.v1.Note.created_at:type_name -> google.protobuf.Timestamp
-	21, // 5: notes.v1.Note.updated_at:type_name -> google.protobuf.Timestamp
-	14, // 6: notes.v1.EventResponse.health_check:type_name -> notes.v1.HealthCheck
-	15, // 7: notes.v1.EventResponse.note_created:type_name -> notes.v1.NoteCreatedEvent
-	21, // 8: notes.v1.HealthCheck.timestamp:type_name -> google.protobuf.Timestamp
-	10, // 9: notes.v1.NoteCreatedEvent.note:type_name -> notes.v1.Note
-	19, // 10: notes.v1.ChatMessage.text_message:type_name -> notes.v1.ChatTextMessage
-	20, // 11: notes.v1.ChatMessage.error:type_name -> notes.v1.ChatError
-	21, // 12: notes.v1.ChatTextMessage.timestamp:type_name -> google.protobuf.Timestamp
-	0,  // 13: notes.v1.NotesService.CreateNote:input_type -> notes.v1.CreateNoteRequest
-	2,  // 14: notes.v1.NotesService.GetNote:input_type -> notes.v1.GetNoteRequest
-	4,  // 15: notes.v1.NotesService.ListNotes:input_type -> notes.v1.ListNotesRequest
-	6,  // 16: notes.v1.NotesService.UpdateNote:input_type -> notes.v1.UpdateNoteRequest
-	8,  // 17: notes.v1.NotesService.DeleteNote:input_type -> notes.v1.DeleteNoteRequest
-	12, // 18: notes.v1.NotesService.SubscribeToEvents:input_type -> notes.v1.SubscribeToEventsRequest
-	16, // 19: notes.v1.NotesService.UploadMetrics:input_type -> notes.v1.MetricRequest
-	18, // 20: notes.v1.NotesService.Chat:input_type -> notes.v1.ChatMessage
-	1,  // 21: notes.v1.NotesService.CreateNote:output_type -> notes.v1.CreateNoteResponse
-	3,  // 22: notes.v1.NotesService.GetNote:output_type -> notes.v1.GetNoteResponse
-	5,  // 23: notes.v1.NotesService.ListNotes:output_type -> notes.v1.ListNotesResponse
-	7,  // 24: notes.v1.NotesService.UpdateNote:output_type -> notes.v1.UpdateNoteResponse
-	9,  // 25: notes.v1.NotesService.DeleteNote:output_type -> notes.v1.DeleteNoteResponse
-	13, // 26: notes.v1.NotesService.SubscribeToEvents:output_type -> notes.v1.EventResponse
-	17, // 27: notes.v1.NotesService.UploadMetrics:output_type -> notes.v1.SummaryResponse
-	18, // 28: notes.v1.NotesService.Chat:output_type -> notes.v1.ChatMessage
-	21, // [21:29] is the sub-list for method output_type
-	13, // [13:21] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	11, // 0: notes.v1.CreateNoteResponse.note:type_name -> notes.v1.Note
+	11, // 1: notes.v1.GetNoteResponse.note:type_name -> notes.v1.Note
+	11, // 2: notes.v1.ListNotesResponse.notes:type_name -> notes.v1.Note
+	11, // 3: notes.v1.UpdateNoteResponse.note:type_name -> notes.v1.Note
+	22, // 4: notes.v1.Note.created_at:type_name -> google.protobuf.Timestamp
+	22, // 5: notes.v1.Note.updated_at:type_name -> google.protobuf.Timestamp
+	15, // 6: notes.v1.EventResponse.health_check:type_name -> notes.v1.HealthCheck
+	16, // 7: notes.v1.EventResponse.note_created:type_name -> notes.v1.NoteCreatedEvent
+	22, // 8: notes.v1.HealthCheck.timestamp:type_name -> google.protobuf.Timestamp
+	11, // 9: notes.v1.NoteCreatedEvent.note:type_name -> notes.v1.Note
+	20, // 10: notes.v1.ChatMessage.text_message:type_name -> notes.v1.ChatTextMessage
+	21, // 11: notes.v1.ChatMessage.error:type_name -> notes.v1.ChatError
+	22, // 12: notes.v1.ChatTextMessage.timestamp:type_name -> google.protobuf.Timestamp
+	0,  // 13: notes.v1.ChatError.code:type_name -> notes.v1.ChatErrorCode
+	1,  // 14: notes.v1.NotesService.CreateNote:input_type -> notes.v1.CreateNoteRequest
+	3,  // 15: notes.v1.NotesService.GetNote:input_type -> notes.v1.GetNoteRequest
+	5,  // 16: notes.v1.NotesService.ListNotes:input_type -> notes.v1.ListNotesRequest
+	7,  // 17: notes.v1.NotesService.UpdateNote:input_type -> notes.v1.UpdateNoteRequest
+	9,  // 18: notes.v1.NotesService.DeleteNote:input_type -> notes.v1.DeleteNoteRequest
+	13, // 19: notes.v1.NotesService.SubscribeToEvents:input_type -> notes.v1.SubscribeToEventsRequest
+	17, // 20: notes.v1.NotesService.UploadMetrics:input_type -> notes.v1.MetricRequest
+	19, // 21: notes.v1.NotesService.Chat:input_type -> notes.v1.ChatMessage
+	2,  // 22: notes.v1.NotesService.CreateNote:output_type -> notes.v1.CreateNoteResponse
+	4,  // 23: notes.v1.NotesService.GetNote:output_type -> notes.v1.GetNoteResponse
+	6,  // 24: notes.v1.NotesService.ListNotes:output_type -> notes.v1.ListNotesResponse
+	8,  // 25: notes.v1.NotesService.UpdateNote:output_type -> notes.v1.UpdateNoteResponse
+	10, // 26: notes.v1.NotesService.DeleteNote:output_type -> notes.v1.DeleteNoteResponse
+	14, // 27: notes.v1.NotesService.SubscribeToEvents:output_type -> notes.v1.EventResponse
+	18, // 28: notes.v1.NotesService.UploadMetrics:output_type -> notes.v1.SummaryResponse
+	19, // 29: notes.v1.NotesService.Chat:output_type -> notes.v1.ChatMessage
+	22, // [22:30] is the sub-list for method output_type
+	14, // [14:22] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_proto_notes_v1_notes_proto_init() }
@@ -1336,6 +1430,10 @@ func file_proto_notes_v1_notes_proto_init() {
 		(*EventResponse_HealthCheck)(nil),
 		(*EventResponse_NoteCreated)(nil),
 	}
+	file_proto_notes_v1_notes_proto_msgTypes[15].OneofWrappers = []any{
+		(*NoteCreatedEvent_NoteId)(nil),
+		(*NoteCreatedEvent_Note)(nil),
+	}
 	file_proto_notes_v1_notes_proto_msgTypes[18].OneofWrappers = []any{
 		(*ChatMessage_TextMessage)(nil),
 		(*ChatMessage_Error)(nil),
@@ -1345,13 +1443,14 @@ func file_proto_notes_v1_notes_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_notes_v1_notes_proto_rawDesc), len(file_proto_notes_v1_notes_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_proto_notes_v1_notes_proto_goTypes,
 		DependencyIndexes: file_proto_notes_v1_notes_proto_depIdxs,
+		EnumInfos:         file_proto_notes_v1_notes_proto_enumTypes,
 		MessageInfos:      file_proto_notes_v1_notes_proto_msgTypes,
 	}.Build()
 	File_proto_notes_v1_notes_proto = out.File
