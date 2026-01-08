@@ -10,6 +10,7 @@ package notesv1
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -1259,7 +1260,7 @@ var File_proto_notes_v1_notes_proto protoreflect.FileDescriptor
 
 const file_proto_notes_v1_notes_proto_rawDesc = "" +
 	"\n" +
-	"\x1aproto/notes/v1/notes.proto\x12\bnotes.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bbuf/validate/validate.proto\"X\n" +
+	"\x1aproto/notes/v1/notes.proto\x12\bnotes.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\"X\n" +
 	"\x11CreateNoteRequest\x12 \n" +
 	"\x05title\x18\x01 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x05\x18\xff\x01R\x05title\x12!\n" +
@@ -1330,16 +1331,16 @@ const file_proto_notes_v1_notes_proto_rawDesc = "" +
 	"\x1bCHAT_ERROR_CODE_UNSPECIFIED\x10\x00\x12$\n" +
 	" CHAT_ERROR_CODE_VALIDATION_ERROR\x10\x01\x12\x1e\n" +
 	"\x1aCHAT_ERROR_CODE_RATE_LIMIT\x10\x02\x12#\n" +
-	"\x1fCHAT_ERROR_CODE_INVALID_MESSAGE\x10\x032\xc4\x04\n" +
-	"\fNotesService\x12G\n" +
+	"\x1fCHAT_ERROR_CODE_INVALID_MESSAGE\x10\x032\xb8\x05\n" +
+	"\fNotesService\x12]\n" +
 	"\n" +
-	"CreateNote\x12\x1b.notes.v1.CreateNoteRequest\x1a\x1c.notes.v1.CreateNoteResponse\x12>\n" +
-	"\aGetNote\x12\x18.notes.v1.GetNoteRequest\x1a\x19.notes.v1.GetNoteResponse\x12D\n" +
-	"\tListNotes\x12\x1a.notes.v1.ListNotesRequest\x1a\x1b.notes.v1.ListNotesResponse\x12G\n" +
+	"CreateNote\x12\x1b.notes.v1.CreateNoteRequest\x1a\x1c.notes.v1.CreateNoteResponse\"\x14\x82\xd3\xe4\x93\x02\x0e:\x01*\"\t/notes/v1\x12V\n" +
+	"\aGetNote\x12\x18.notes.v1.GetNoteRequest\x1a\x19.notes.v1.GetNoteResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/notes/v1/{id}\x12W\n" +
+	"\tListNotes\x12\x1a.notes.v1.ListNotesRequest\x1a\x1b.notes.v1.ListNotesResponse\"\x11\x82\xd3\xe4\x93\x02\v\x12\t/notes/v1\x12b\n" +
 	"\n" +
-	"UpdateNote\x12\x1b.notes.v1.UpdateNoteRequest\x1a\x1c.notes.v1.UpdateNoteResponse\x12G\n" +
+	"UpdateNote\x12\x1b.notes.v1.UpdateNoteRequest\x1a\x1c.notes.v1.UpdateNoteResponse\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\x1a\x0e/notes/v1/{id}\x12_\n" +
 	"\n" +
-	"DeleteNote\x12\x1b.notes.v1.DeleteNoteRequest\x1a\x1c.notes.v1.DeleteNoteResponse\x12R\n" +
+	"DeleteNote\x12\x1b.notes.v1.DeleteNoteRequest\x1a\x1c.notes.v1.DeleteNoteResponse\"\x16\x82\xd3\xe4\x93\x02\x10*\x0e/notes/v1/{id}\x12R\n" +
 	"\x11SubscribeToEvents\x12\".notes.v1.SubscribeToEventsRequest\x1a\x17.notes.v1.EventResponse0\x01\x12E\n" +
 	"\rUploadMetrics\x12\x17.notes.v1.MetricRequest\x1a\x19.notes.v1.SummaryResponse(\x01\x128\n" +
 	"\x04Chat\x12\x15.notes.v1.ChatMessage\x1a\x15.notes.v1.ChatMessage(\x010\x01B\x12Z\x10notes/v1;notesv1b\x06proto3"

@@ -14,6 +14,10 @@ Notes Service — это базовый микросервис, предоста
 - ✅ Обновление существующих заметок
 - ✅ Удаление заметок
 - ✅ **gRPC Стриминг**: Server-side, Client-side и Bidirectional стриминг
+- ✅ **HTTP Gateway (REST API)**: gRPC-Gateway для REST/JSON запросов
+- ✅ **Swagger UI**: Интерактивная документация API на порту 8082
+- ✅ **CORS**: Поддержка Cross-Origin запросов для веб-приложений
+- ✅ **WebSocket Proxy**: Поддержка streaming методов через WebSocket
 - ✅ gRPC reflection для отладки (grpcurl, grpcui)
 - ✅ Graceful shutdown
 - ✅ Clean Architecture с разделением на слои
@@ -281,6 +285,233 @@ grpcurl -plaintext -H "authorization: Bearer my-secret-token" -d '{
 5. **Важно**: В grpcui необходимо добавить метаданные для авторизации. В разделе "Metadata" добавьте:
    - Key: `authorization`
    - Value: `Bearer my-secret-token`
+
+#### Через HTTP Gateway (REST API)
+
+Сервис предоставляет HTTP Gateway через **gRPC-Gateway**, который конвертирует REST/JSON запросы в gRPC вызовы. HTTP Gateway запускается автоматически при запуске сервера на порту **8080** (по умолчанию).
+
+##### Создание заметки (POST)
+
+```bash
+curl -X POST http://localhost:8080/notes/v1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer my-secret-token" \
+  -d '{
+    "title": "Моя первая заметка",
+    "content": "Это содержимое заметки с достаточным количеством символов"
+  }'
+```
+
+Пример ответа:
+```json
+{
+  "note": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "title": "Моя первая заметка",
+    "content": "Это содержимое заметки",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+##### Получение списка заметок (GET)
+
+```bash
+curl -X GET http://localhost:8080/notes/v1 \
+  -H "Authorization: Bearer my-secret-token"
+```
+
+##### Получение заметки по ID (GET)
+
+```bash
+curl -X GET http://localhost:8080/notes/v1/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Authorization: Bearer my-secret-token"
+```
+
+##### Обновление заметки (PUT)
+
+```bash
+curl -X PUT http://localhost:8080/notes/v1/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer my-secret-token" \
+  -d '{
+    "title": "Обновленный заголовок",
+    "content": "Обновленное содержимое с достаточным количеством символов"
+  }'
+```
+
+##### Удаление заметки (DELETE)
+
+```bash
+curl -X DELETE http://localhost:8080/notes/v1/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Authorization: Bearer my-secret-token"
+```
+
+##### JavaScript пример для фронтенда
+
+```javascript
+// Создание заметки
+async function createNote(title, content) {
+  const response = await fetch('http://localhost:8080/notes/v1', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer my-secret-token'
+    },
+    body: JSON.stringify({ title, content })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  return await response.json();
+}
+
+// Получение списка заметок
+async function listNotes() {
+  const response = await fetch('http://localhost:8080/notes/v1', {
+    headers: {
+      'Authorization': 'Bearer my-secret-token'
+    }
+  });
+  
+  return await response.json();
+}
+
+// Получение заметки по ID
+async function getNote(id) {
+  const response = await fetch(`http://localhost:8080/notes/v1/${id}`, {
+    headers: {
+      'Authorization': 'Bearer my-secret-token'
+    }
+  });
+  
+  return await response.json();
+}
+
+// Обновление заметки
+async function updateNote(id, title, content) {
+  const response = await fetch(`http://localhost:8080/notes/v1/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer my-secret-token'
+    },
+    body: JSON.stringify({ title, content })
+  });
+  
+  return await response.json();
+}
+
+// Удаление заметки
+async function deleteNote(id) {
+  const response = await fetch(`http://localhost:8080/notes/v1/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': 'Bearer my-secret-token'
+    }
+  });
+  
+  return await response.json();
+}
+```
+
+### Swagger UI
+
+Сервис включает интерактивную документацию API через **Swagger UI**, доступную на отдельном порту **8082**.
+
+#### Запуск Swagger UI сервера
+
+```bash
+# Запустить основной сервер (gRPC + HTTP Gateway)
+task run
+
+# В отдельном терминале запустить Swagger UI
+task run:swagger
+
+# Или напрямую
+go run cmd/swagger-server/main.go
+```
+
+#### Доступ к Swagger UI
+
+После запуска Swagger UI сервера откройте в браузере:
+
+- **Локальный доступ**: `http://localhost:8082/swagger-ui/`
+- **Через WSL IP**: `http://<WSL_IP>:8082/swagger-ui/` (например, `http://172.17.207.2:8082/swagger-ui/`)
+
+Для получения WSL IP выполните в терминале WSL:
+```bash
+hostname -I
+```
+
+#### Использование Swagger UI
+
+1. Откройте Swagger UI в браузере
+2. Все API методы отображаются в интерактивном интерфейсе
+3. Нажмите на метод для раскрытия деталей
+4. Нажмите "Try it out" для выполнения запроса
+5. Заполните параметры запроса
+6. Для авторизации добавьте заголовок `Authorization` с значением `Bearer my-secret-token`
+7. Нажмите "Execute" для выполнения запроса
+8. Результат отобразится ниже
+
+**Примечание**: Swagger UI автоматически перенаправляет API запросы на HTTP Gateway (порт 8080) через `requestInterceptor`.
+
+### CORS (Cross-Origin Resource Sharing)
+
+HTTP Gateway поддерживает CORS для работы с веб-приложениями, запущенными на других доменах/портах.
+
+#### Настройка CORS
+
+По умолчанию разрешены следующие origins:
+- `http://localhost:3000` (React dev server)
+- `http://localhost:5173` (Vite dev server)
+- `http://localhost:8080` (Gateway)
+- `http://localhost:8082` (Swagger UI)
+
+#### Настройка через переменную окружения
+
+Для изменения разрешенных origins используйте переменную окружения `CORS_ALLOWED_ORIGINS`:
+
+```bash
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://example.com task run
+```
+
+#### CORS заголовки
+
+HTTP Gateway автоматически добавляет следующие заголовки в ответы:
+- `Access-Control-Allow-Origin`: Разрешенный origin
+- `Access-Control-Allow-Methods`: GET, POST, PUT, DELETE, OPTIONS, PATCH
+- `Access-Control-Allow-Headers`: Content-Type, Authorization, X-Requested-With
+- `Access-Control-Allow-Credentials`: true
+- `Access-Control-Max-Age`: 86400 (24 часа)
+
+#### Пример использования CORS в браузере
+
+```javascript
+// Запрос из браузера с другого origin
+fetch('http://localhost:8080/notes/v1', {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer my-secret-token'
+  },
+  credentials: 'include' // Важно для CORS с credentials
+})
+  .then(response => response.json())
+  .then(data => console.log(data))
+  .catch(error => console.error('Error:', error));
+```
+
+#### Тестирование CORS
+
+Для тестирования CORS можно использовать готовый HTML файл `test-cors.html`:
+1. Запустите сервер: `task run`
+2. Откройте `test-cors.html` в браузере
+3. Нажмите кнопки для тестирования различных HTTP методов
+4. Проверьте консоль браузера на наличие CORS ошибок
 
 ## 🔐 Авторизация
 
@@ -826,6 +1057,125 @@ go run ./cmd/client/main.go chat       # Bidirectional streaming
 grpcurl -plaintext -H "authorization: Bearer my-secret-token" \
   -d '{"title":"Test Note","content":"This is test content with more than 10 characters"}' \
   localhost:50051 notes.v1.NotesService/CreateNote
+```
+
+## 🌐 WebSocket эндпоинты
+
+Сервис поддерживает WebSocket для streaming методов через **gRPC-Gateway** и **wsproxy**. Это позволяет клиентам (особенно веб-приложениям) использовать WebSocket для взаимодействия с gRPC streaming методами.
+
+### Доступные WebSocket эндпоинты
+
+Все streaming методы доступны через WebSocket по тем же путям, что и через gRPC-Gateway:
+
+| Метод | WebSocket URL | Тип стрима | Описание |
+|-------|---------------|------------|----------|
+| `SubscribeToEvents` | `ws://localhost:8080/notes.v1.NotesService/SubscribeToEvents` | Server-side | Подписка на события создания заметок |
+| `UploadMetrics` | `ws://localhost:8080/notes.v1.NotesService/UploadMetrics` | Client-side | Загрузка потока метрик |
+| `Chat` | `ws://localhost:8080/notes.v1.NotesService/Chat` | Bidirectional | Асинхронный чат с подтверждениями |
+
+### Использование WebSocket
+
+#### Подключение к WebSocket
+
+WebSocket подключение автоматически конвертируется в gRPC стрим библиотекой `wsproxy`. При подключении:
+
+1. Клиент устанавливает WebSocket соединение по URL метода
+2. `wsproxy` автоматически обнаруживает WebSocket upgrade запрос
+3. Устанавливается WebSocket соединение
+4. Данные конвертируются между WebSocket и gRPC стримом
+
+#### Пример использования в JavaScript
+
+```javascript
+// Подключение к SubscribeToEvents (server-side streaming)
+const ws = new WebSocket('ws://localhost:8080/notes.v1.NotesService/SubscribeToEvents');
+
+ws.onopen = () => {
+    console.log('WebSocket connected');
+    // Отправить запрос на подписку (пустой объект для SubscribeToEventsRequest)
+    ws.send(JSON.stringify({}));
+};
+
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log('Received event:', data);
+    // Обработка EventResponse
+};
+
+ws.onerror = (error) => {
+    console.error('WebSocket error:', error);
+};
+
+ws.onclose = () => {
+    console.log('WebSocket closed');
+};
+```
+
+#### Пример использования с wscat
+
+```bash
+# Установка wscat (требуется Node.js)
+npm install -g wscat
+
+# Подключение к SubscribeToEvents
+wscat -c ws://localhost:8080/notes.v1.NotesService/SubscribeToEvents
+```
+
+После подключения отправьте пустой JSON объект `{}` для подписки на события.
+
+#### Тестирование через HTML файл
+
+В корне проекта есть файл `test-websocket.html` для интерактивного тестирования WebSocket соединений:
+
+1. Запустите сервер:
+   ```bash
+   task run
+   ```
+
+2. Откройте `test-websocket.html` в браузере
+
+3. Нажмите "Connect" для подключения к WebSocket
+
+4. Создайте заметку через curl или другой клиент:
+   ```bash
+   curl -X POST http://localhost:8080/notes/v1 \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer my-secret-token" \
+     -d '{"title":"Test Note","content":"This is a test note"}'
+   ```
+
+5. Событие создания заметки должно появиться в WebSocket сообщениях
+
+### Авторизация через WebSocket
+
+Для авторизации через WebSocket передайте токен в заголовке при установке соединения:
+
+```javascript
+// В браузере WebSocket API не позволяет напрямую устанавливать заголовки
+// Используйте параметр запроса или cookie
+const token = 'my-secret-token';
+const ws = new WebSocket(`ws://localhost:8080/notes.v1.NotesService/SubscribeToEvents?token=${token}`);
+```
+
+Или через cookie (если настроено):
+
+```javascript
+// Токен должен быть установлен в cookie с именем "token"
+document.cookie = "token=my-secret-token; path=/";
+const ws = new WebSocket('ws://localhost:8080/notes.v1.NotesService/SubscribeToEvents');
+```
+
+### CORS и WebSocket
+
+WebSocket соединения поддерживают CORS заголовки, настроенные в HTTP Gateway. По умолчанию разрешены origins:
+- `http://localhost:3000` (React dev server)
+- `http://localhost:5173` (Vite dev server)
+- `http://localhost:8080` (Gateway)
+- `http://localhost:8082` (Swagger UI)
+
+Для изменения разрешенных origins используйте переменную окружения:
+```bash
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://example.com task run
 ```
 
 ## 🔧 Команды Taskfile
