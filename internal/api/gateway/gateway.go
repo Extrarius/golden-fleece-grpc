@@ -20,10 +20,16 @@ import (
 )
 
 // Setup настраивает и запускает HTTP Gateway сервер
-func Setup(ctx context.Context, grpcAddr string, httpAddr string, cfg *config.ConfigGateway) error {
-	// Создаем новый ServeMux для HTTP Gateway с настройкой передачи метаданных
+// Если mux == nil, создается новый http.ServeMux, иначе используется переданный
+func Setup(ctx context.Context, grpcAddr string, httpAddr string, cfg *config.ConfigGateway, mux *http.ServeMux) error {
+	// Создаем обычный http.ServeMux если не передан
+	if mux == nil {
+		mux = http.NewServeMux()
+	}
+
+	// Создаем runtime.ServeMux для HTTP Gateway с настройкой передачи метаданных
 	// Передаем HTTP заголовки (особенно Authorization) в gRPC metadata
-	mux := runtime.NewServeMux(
+	gwMux := runtime.NewServeMux(
 		runtime.WithMetadata(func(ctx context.Context, req *http.Request) metadata.MD {
 			md := metadata.New(nil)
 			// Передача заголовка authorization из HTTP в gRPC metadata
@@ -40,16 +46,31 @@ func Setup(ctx context.Context, grpcAddr string, httpAddr string, cfg *config.Co
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
 
-	// Регистрация хендлеров NotesService
+	// Регистрация хендлеров NotesService на runtime.ServeMux
 	err := notesv1.RegisterNotesServiceHandlerFromEndpoint(
 		ctx,
-		mux,
+		gwMux,
 		grpcAddr, // Адрес gRPC сервера (например, "localhost:50051")
 		opts,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to register gateway: %w", err)
 	}
+
+	// Добавляем gateway handler на общий mux
+	// Оборачиваем runtime.ServeMux в handler, который пропускает /swagger/ пути
+	// чтобы они обрабатывались другими handlers (Swagger UI)
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Пропускаем пути к Swagger UI - они должны обрабатываться другими handlers
+		if strings.HasPrefix(r.URL.Path, "/swagger") {
+			// Если путь начинается с /swagger, но не обработан Swagger handler,
+			// значит Swagger не зарегистрирован или путь неверный - возвращаем 404
+			http.NotFound(w, r)
+			return
+		}
+		// Все остальные пути обрабатываются Gateway
+		gwMux.ServeHTTP(w, r)
+	}))
 
 	// Применение middleware (в обратном порядке выполнения):
 	// 1. WebSocket Proxy (для streaming методов - самый внешний слой)
@@ -65,8 +86,7 @@ func Setup(ctx context.Context, grpcAddr string, httpAddr string, cfg *config.Co
 	handler = setupWebSocketProxy(handler)
 
 	// Запуск HTTP сервера Gateway
-	// Примечание: Swagger UI работает на отдельном порту (по умолчанию 8082)
-	// Запустите отдельно: go run cmd/swagger-server/main.go
+	// Swagger UI доступен по адресу /swagger/ (если добавлен через ServeSwagger)
 	// WebSocket эндпоинты доступны для streaming методов:
 	// - /notes.v1.NotesService/SubscribeToEvents (server-side streaming)
 	// - /notes.v1.NotesService/UploadMetrics (client-side streaming)

@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -13,12 +15,16 @@ import (
 
 	"notes-service/internal/api/gateway"
 	grpcapi "notes-service/internal/api/grpc"
+	"notes-service/internal/api/swagger"
 	"notes-service/internal/config"
 	"notes-service/internal/repository/memory"
 	notesService "notes-service/internal/service/notes"
 )
 
 const configFile = "config.yml"
+
+//go:embed swagger-specs/*
+var swaggerSpecs embed.FS
 
 func main() {
 	// Загружаем конфигурацию из файла
@@ -30,6 +36,24 @@ func main() {
 	// Получаем порты из конфига
 	grpcPort := strconv.Itoa(appConfig.Server.PortGRPC)
 	httpPort := strconv.Itoa(appConfig.Server.PortHTTP)
+
+	// Отладочное логирование
+	if appConfig.Server.PortGRPC == 0 {
+		log.Printf("⚠️  Warning: PortGRPC is 0, using default 50051")
+		grpcPort = "50051"
+	}
+	if appConfig.Server.PortHTTP == 0 {
+		log.Printf("⚠️  Warning: PortHTTP is 0, using default 8080")
+		httpPort = "8080"
+	}
+	log.Printf("📋 Config loaded: gRPC port=%s, HTTP port=%s", grpcPort, httpPort)
+
+	// Проверка конфигурации Swagger
+	if appConfig.Swagger == nil {
+		log.Printf("⚠️  Warning: Swagger config is nil")
+	} else {
+		log.Printf("📋 Swagger config: enabled=%v", appConfig.Swagger.Enabled)
+	}
 
 	addr := "0.0.0.0:" + grpcPort
 	log.Printf("Starting Notes Service on %s", addr)
@@ -77,8 +101,25 @@ func main() {
 		grpcAddr = "localhost" + grpcAddr
 	}
 
+	// Создаем общий HTTP mux для Gateway и Swagger
+	httpMux := http.NewServeMux()
+
+	// Важно: регистрируем Swagger ПЕРЕД Gateway
+	// чтобы маршруты /swagger/ обрабатывались Swagger, а не Gateway
+	// Добавляем Swagger UI на общий mux (если включен в конфиге)
+	if appConfig.Swagger != nil && appConfig.Swagger.Enabled {
+		log.Printf("🔧 Initializing Swagger UI...")
+		swagger.ServeSwagger(httpMux, swaggerSpecs)
+		log.Printf("📖 Swagger UI available at http://localhost:%s/swagger/", httpPort)
+		log.Printf("📖 Swagger UI also at http://172.17.207.2:%s/swagger/ (WSL IP)", httpPort)
+	} else {
+		log.Printf("⚠️  Swagger UI is disabled or not configured")
+	}
+
+	// Запускаем Gateway на том же mux
+	// Gateway обрабатывает только зарегистрированные пути (/notes/v1/*)
 	go func() {
-		if err := gateway.Setup(gatewayCtx, grpcAddr, httpAddr, appConfig.Gateway); err != nil {
+		if err := gateway.Setup(gatewayCtx, grpcAddr, httpAddr, appConfig.Gateway, httpMux); err != nil {
 			errChan <- fmt.Errorf("HTTP Gateway error: %w", err)
 		}
 	}()

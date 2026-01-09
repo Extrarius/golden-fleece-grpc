@@ -25,7 +25,7 @@ swagger-ui/
 swagger-ui-dist/
 
 # Embedded files for swagger-server (копии оригинальных файлов)
-cmd/swagger-server/embed/
+cmd/server/swagger-specs/
 
 # Test files
 test-cors.html

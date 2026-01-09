@@ -18,5 +18,5 @@ gateway:
   rate_limit_burst: ${RATE_LIMIT_BURST:-10}
 
 swagger:
-  port: ${SWAGGER_PORT:-8082}
+  enabled: ${SWAGGER_ENABLED:-true}
 

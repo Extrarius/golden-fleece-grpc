@@ -27,7 +27,7 @@ type ConfigGateway struct {
 
 // ConfigSwagger настройки Swagger UI сервера
 type ConfigSwagger struct {
-	Port int `mapstructure:"port"`
+	Enabled bool `mapstructure:"enabled"`
 }
 
 // Config основная структура конфигурации

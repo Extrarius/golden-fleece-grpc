@@ -284,35 +284,9 @@ tasks:
         echo "✅ Линтинг Go кода завершен успешно"
 
   run:
-    desc: "Запуск сервера (gRPC + HTTP Gateway на порту 8080)"
+    desc: "Запуск сервера (gRPC + HTTP Gateway + Swagger UI на порту 8080)"
     cmds:
       - go run cmd/server/main.go
-
-  prepare:swagger:
-    desc: "Подготовка файлов для embed (копирование в cmd/swagger-server/embed/)"
-    cmds:
-      - |
-        echo "📦 Подготовка файлов для Swagger UI embed..."
-        mkdir -p cmd/swagger-server/embed
-        if [ -d "swagger-ui" ]; then
-          cp -r swagger-ui/* cmd/swagger-server/embed/
-          echo "✅ Файлы Swagger UI скопированы"
-        else
-          echo "⚠️  Директория swagger-ui не найдена"
-        fi
-        if [ -f "pkg/api/notes/v1/notes.swagger.json" ]; then
-          cp pkg/api/notes/v1/notes.swagger.json cmd/swagger-server/embed/
-          echo "✅ swagger.json скопирован"
-        else
-          echo "⚠️  Файл swagger.json не найден"
-        fi
-        echo "✅ Подготовка завершена"
-
-  run:swagger:
-    desc: "Запуск Swagger UI сервера (отдельный порт 8082)"
-    deps: [ prepare:swagger ]
-    cmds:
-      - go run cmd/swagger-server/main.go
 
   clean:
     desc: "Очистка артефактов сборки"
