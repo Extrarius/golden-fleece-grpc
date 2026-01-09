@@ -1,4 +1,4 @@
-package gateway
+package grpcgateway
 
 import (
 	"context"

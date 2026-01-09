@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"notes-service/internal/api/gateway"
+	"notes-service/internal/api/grpcgateway"
 	grpcapi "notes-service/internal/api/grpc"
 	"notes-service/internal/api/swagger"
 	"notes-service/internal/config"
@@ -119,7 +119,7 @@ func main() {
 	// Запускаем Gateway на том же mux
 	// Gateway обрабатывает только зарегистрированные пути (/notes/v1/*)
 	go func() {
-		if err := gateway.Setup(gatewayCtx, grpcAddr, httpAddr, appConfig.Gateway, httpMux); err != nil {
+		if err := grpcgateway.Setup(gatewayCtx, grpcAddr, httpAddr, appConfig.Gateway, httpMux); err != nil {
 			errChan <- fmt.Errorf("HTTP Gateway error: %w", err)
 		}
 	}()
