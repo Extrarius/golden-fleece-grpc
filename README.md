@@ -15,16 +15,17 @@ Notes Service — это базовый микросервис, предоста
 - ✅ Удаление заметок
 - ✅ **gRPC Стриминг**: Server-side, Client-side и Bidirectional стриминг
 - ✅ **HTTP Gateway (REST API)**: gRPC-Gateway для REST/JSON запросов
-- ✅ **Swagger UI**: Интерактивная документация API на порту 8082
+- ✅ **Swagger UI**: Интерактивная документация API, интегрированная в основной сервер
 - ✅ **CORS**: Поддержка Cross-Origin запросов для веб-приложений
 - ✅ **WebSocket Proxy**: Поддержка streaming методов через WebSocket
 - ✅ gRPC reflection для отладки (grpcurl, grpcui)
-- ✅ Graceful shutdown
+- ✅ Graceful shutdown с поддержкой контекста сервера для стримов
 - ✅ Clean Architecture с разделением на слои
 - ✅ Интерцепторы: Logger, Validate, Auth (unary и streaming)
 - ✅ Валидация запросов через protovalidate
 - ✅ Детализированная обработка ошибок с ErrorDetails
-- ✅ Конфигурация сервера с KeepAlive и ограничениями
+- ✅ Конфигурация сервера через `config.yml` и `viper` с поддержкой переменных окружения
+- ✅ Структура `Server` для инкапсуляции логики сервера
 
 ## 🏗️ Архитектура
 
@@ -53,13 +54,21 @@ Notes Service — это базовый микросервис, предоста
 notes-service/
 ├── cmd/server/           # Точка входа приложения
 ├── internal/
-│   ├── api/grpc/        # gRPC handlers (транспортный слой)
+│   ├── api/
+│   │   ├── grpc/        # gRPC handlers (транспортный слой)
+│   │   ├── grpcgateway/ # HTTP Gateway (gRPC-Gateway)
+│   │   ├── swagger/     # Swagger UI интеграция
+│   │   └── http/
+│   │       └── middleware/ # HTTP middleware (logging, rate limit, CORS)
+│   ├── server/          # Структура сервера (Server с методами)
+│   ├── config/          # Конфигурация (viper)
 │   ├── service/         # Бизнес-логика
 │   ├── repository/      # Доступ к данным
 │   ├── model/           # Доменные модели
 │   └── converter/       # Конвертеры proto ↔ domain
 ├── proto/               # Protocol Buffer определения
-└── pkg/proto/           # Сгенерированный Go код из proto
+├── pkg/proto/           # Сгенерированный Go код из proto
+└── config.yml           # Конфигурационный файл
 ```
 
 ## 📋 Требования
@@ -119,19 +128,24 @@ task run
 go run cmd/server/main.go
 ```
 
-#### С кастомным портом
+#### Конфигурация
 
-По умолчанию сервер запускается на порту `50051`. Для изменения порта используйте переменную окружения:
+Сервер использует файл `config.yml` для конфигурации. Все параметры можно переопределить через переменные окружения в формате `${VAR:-default}`.
 
+**Основные параметры:**
+- `SERVER_PORT_GRPC` - порт gRPC сервера (по умолчанию: 50051)
+- `SERVER_PORT_HTTP` - порт HTTP Gateway (по умолчанию: 8080)
+- `SWAGGER_ENABLED` - включить/выключить Swagger UI (по умолчанию: true)
+- `CORS_ALLOWED_ORIGINS` - разрешенные origins для CORS (по умолчанию: `http://localhost:3000,http://localhost:5173,http://localhost:8080`)
+- `RATE_LIMIT_RPS` - лимит запросов в секунду (по умолчанию: 100)
+- `RATE_LIMIT_BURST` - размер burst для rate limiting (по умолчанию: 10)
+
+**Пример использования переменных окружения:**
 ```bash
-PORT=8080 go run cmd/server/main.go
+SERVER_PORT_GRPC=50052 SERVER_PORT_HTTP=8081 SWAGGER_ENABLED=false go run cmd/server/main.go
 ```
 
-или
-
-```bash
-PORT=8080 task run
-```
+**Примечание:** Конфигурация загружается через `github.com/spf13/viper` с поддержкой переменных окружения и дефолтных значений в формате `${VAR:-default}`.
 
 ### Запуск тестов
 
@@ -290,10 +304,12 @@ grpcurl -plaintext -H "authorization: Bearer my-secret-token" -d '{
 
 Сервис предоставляет HTTP Gateway через **gRPC-Gateway**, который конвертирует REST/JSON запросы в gRPC вызовы. HTTP Gateway запускается автоматически при запуске сервера на порту **8080** (по умолчанию).
 
+**Важно:** Все API эндпоинты доступны с префиксом `/api/v1/`.
+
 ##### Создание заметки (POST)
 
 ```bash
-curl -X POST http://localhost:8080/notes/v1 \
+curl -X POST http://localhost:8080/api/v1/notes/v1 \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer my-secret-token" \
   -d '{
@@ -318,21 +334,21 @@ curl -X POST http://localhost:8080/notes/v1 \
 ##### Получение списка заметок (GET)
 
 ```bash
-curl -X GET http://localhost:8080/notes/v1 \
+curl -X GET http://localhost:8080/api/v1/notes/v1 \
   -H "Authorization: Bearer my-secret-token"
 ```
 
 ##### Получение заметки по ID (GET)
 
 ```bash
-curl -X GET http://localhost:8080/notes/v1/550e8400-e29b-41d4-a716-446655440000 \
+curl -X GET http://localhost:8080/api/v1/notes/v1/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer my-secret-token"
 ```
 
 ##### Обновление заметки (PUT)
 
 ```bash
-curl -X PUT http://localhost:8080/notes/v1/550e8400-e29b-41d4-a716-446655440000 \
+curl -X PUT http://localhost:8080/api/v1/notes/v1/550e8400-e29b-41d4-a716-446655440000 \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer my-secret-token" \
   -d '{
@@ -344,7 +360,7 @@ curl -X PUT http://localhost:8080/notes/v1/550e8400-e29b-41d4-a716-446655440000 
 ##### Удаление заметки (DELETE)
 
 ```bash
-curl -X DELETE http://localhost:8080/notes/v1/550e8400-e29b-41d4-a716-446655440000 \
+curl -X DELETE http://localhost:8080/api/v1/notes/v1/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer my-secret-token"
 ```
 
@@ -353,7 +369,7 @@ curl -X DELETE http://localhost:8080/notes/v1/550e8400-e29b-41d4-a716-4466554400
 ```javascript
 // Создание заметки
 async function createNote(title, content) {
-  const response = await fetch('http://localhost:8080/notes/v1', {
+  const response = await fetch('http://localhost:8080/api/v1/notes/v1', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -371,7 +387,7 @@ async function createNote(title, content) {
 
 // Получение списка заметок
 async function listNotes() {
-  const response = await fetch('http://localhost:8080/notes/v1', {
+  const response = await fetch('http://localhost:8080/api/v1/notes/v1', {
     headers: {
       'Authorization': 'Bearer my-secret-token'
     }
@@ -382,7 +398,7 @@ async function listNotes() {
 
 // Получение заметки по ID
 async function getNote(id) {
-  const response = await fetch(`http://localhost:8080/notes/v1/${id}`, {
+  const response = await fetch(`http://localhost:8080/api/v1/notes/v1/${id}`, {
     headers: {
       'Authorization': 'Bearer my-secret-token'
     }
@@ -393,7 +409,7 @@ async function getNote(id) {
 
 // Обновление заметки
 async function updateNote(id, title, content) {
-  const response = await fetch(`http://localhost:8080/notes/v1/${id}`, {
+  const response = await fetch(`http://localhost:8080/api/v1/notes/v1/${id}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -407,7 +423,7 @@ async function updateNote(id, title, content) {
 
 // Удаление заметки
 async function deleteNote(id) {
-  const response = await fetch(`http://localhost:8080/notes/v1/${id}`, {
+  const response = await fetch(`http://localhost:8080/api/v1/notes/v1/${id}`, {
     method: 'DELETE',
     headers: {
       'Authorization': 'Bearer my-secret-token'
@@ -420,27 +436,14 @@ async function deleteNote(id) {
 
 ### Swagger UI
 
-Сервис включает интерактивную документацию API через **Swagger UI**, доступную на отдельном порту **8082**.
-
-#### Запуск Swagger UI сервера
-
-```bash
-# Запустить основной сервер (gRPC + HTTP Gateway)
-task run
-
-# В отдельном терминале запустить Swagger UI
-task run:swagger
-
-# Или напрямую
-go run cmd/swagger-server/main.go
-```
+Сервис включает интерактивную документацию API через **Swagger UI**, интегрированную в основной HTTP сервер.
 
 #### Доступ к Swagger UI
 
-После запуска Swagger UI сервера откройте в браузере:
+После запуска сервера Swagger UI доступен на том же порту, что и HTTP Gateway (по умолчанию **8080**):
 
-- **Локальный доступ**: `http://localhost:8082/swagger-ui/`
-- **Через WSL IP**: `http://<WSL_IP>:8082/swagger-ui/` (например, `http://172.17.207.2:8082/swagger-ui/`)
+- **Локальный доступ**: `http://localhost:8080/swagger/`
+- **Через WSL IP**: `http://<WSL_IP>:8080/swagger/` (например, `http://172.17.207.2:8080/swagger/`)
 
 Для получения WSL IP выполните в терминале WSL:
 ```bash
@@ -449,16 +452,22 @@ hostname -I
 
 #### Использование Swagger UI
 
-1. Откройте Swagger UI в браузере
-2. Все API методы отображаются в интерактивном интерфейсе
-3. Нажмите на метод для раскрытия деталей
-4. Нажмите "Try it out" для выполнения запроса
-5. Заполните параметры запроса
-6. Для авторизации добавьте заголовок `Authorization` с значением `Bearer my-secret-token`
-7. Нажмите "Execute" для выполнения запроса
-8. Результат отобразится ниже
+1. Запустите сервер: `go run cmd/server/main.go` или `task run`
+2. Откройте Swagger UI в браузере по адресу `http://localhost:8080/swagger/`
+3. Все API методы отображаются в интерактивном интерфейсе
+4. Нажмите на метод для раскрытия деталей
+5. Нажмите "Try it out" для выполнения запроса
+6. Заполните параметры запроса
+7. Для авторизации добавьте заголовок `Authorization` с значением `Bearer my-secret-token`
+8. Нажмите "Execute" для выполнения запроса
+9. Результат отобразится ниже
 
-**Примечание**: Swagger UI автоматически перенаправляет API запросы на HTTP Gateway (порт 8080) через `requestInterceptor`.
+#### Конфигурация Swagger UI
+
+Swagger UI можно включить/выключить через конфигурацию:
+
+- В `config.yml`: установите `swagger.enabled: true/false`
+- Через переменную окружения: `SWAGGER_ENABLED=true` (по умолчанию: `true`)
 
 ### CORS (Cross-Origin Resource Sharing)
 
@@ -469,8 +478,7 @@ HTTP Gateway поддерживает CORS для работы с веб-при�
 По умолчанию разрешены следующие origins:
 - `http://localhost:3000` (React dev server)
 - `http://localhost:5173` (Vite dev server)
-- `http://localhost:8080` (Gateway)
-- `http://localhost:8082` (Swagger UI)
+- `http://localhost:8080` (Gateway и Swagger UI)
 
 #### Настройка через переменную окружения
 
@@ -493,7 +501,7 @@ HTTP Gateway автоматически добавляет следующие з
 
 ```javascript
 // Запрос из браузера с другого origin
-fetch('http://localhost:8080/notes/v1', {
+fetch('http://localhost:8080/api/v1/notes/v1', {
   method: 'GET',
   headers: {
     'Authorization': 'Bearer my-secret-token'
@@ -1011,8 +1019,11 @@ message ChatError {
 #### Контекст и таймауты
 
 - Клиент может установить таймаут через `context.WithTimeout()`
-- Сервер проверяет `ctx.Done()` во всех циклах обработки
-- При отмене контекста горутины корректно завершаются
+- Сервер проверяет `ctx.Done()` (контекст стрима от клиента) во всех циклах обработки
+- Сервер также проверяет `serverCtx.Done()` (контекст сервера) для корректного завершения при shutdown
+- При отмене любого из контекстов горутины корректно завершаются
+
+**Важно:** Для корректного graceful shutdown используется контекст сервера, который отменяется при получении сигнала shutdown. Это необходимо, так как контекст стрима (`stream.Context()`) не отменяется автоматически при `GracefulStop()` в отличие от unary методов.
 
 #### io.EOF
 
@@ -1036,7 +1047,7 @@ message ChatError {
 - **При отправке сообщения**: `"📤 Stream SendMsg: sending message of type {type}"`
 - **При завершении**: `"✅ Stream completed successfully"` или `"❌ Stream handler error"`
 
-Интерцептор подключен через `grpc.ChainStreamInterceptor` в `cmd/server/main.go`.
+Интерцептор подключен через `grpc.ChainStreamInterceptor` в `internal/api/grpc/server.go`.
 
 ### Тестирование стримов
 
@@ -1053,10 +1064,16 @@ go run ./cmd/client/main.go streaming  # Server-side streaming
 go run ./cmd/client/main.go upload     # Client-side streaming  
 go run ./cmd/client/main.go chat       # Bidirectional streaming
 
-# 3. Создать событие для server-side streaming:
+# 3. Создать событие для server-side streaming (через gRPC):
 grpcurl -plaintext -H "authorization: Bearer my-secret-token" \
   -d '{"title":"Test Note","content":"This is test content with more than 10 characters"}' \
   localhost:50051 notes.v1.NotesService/CreateNote
+
+# Или через HTTP Gateway:
+curl -X POST http://localhost:8080/api/v1/notes/v1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer my-secret-token" \
+  -d '{"title":"Test Note","content":"This is test content with more than 10 characters"}'
 ```
 
 ## 🌐 WebSocket эндпоинты
@@ -1069,9 +1086,9 @@ grpcurl -plaintext -H "authorization: Bearer my-secret-token" \
 
 | Метод | WebSocket URL | Тип стрима | Описание |
 |-------|---------------|------------|----------|
-| `SubscribeToEvents` | `ws://localhost:8080/notes.v1.NotesService/SubscribeToEvents` | Server-side | Подписка на события создания заметок |
-| `UploadMetrics` | `ws://localhost:8080/notes.v1.NotesService/UploadMetrics` | Client-side | Загрузка потока метрик |
-| `Chat` | `ws://localhost:8080/notes.v1.NotesService/Chat` | Bidirectional | Асинхронный чат с подтверждениями |
+| `SubscribeToEvents` | `ws://localhost:8080/api/v1/notes.v1.NotesService/SubscribeToEvents` | Server-side | Подписка на события создания заметок |
+| `UploadMetrics` | `ws://localhost:8080/api/v1/notes.v1.NotesService/UploadMetrics` | Client-side | Загрузка потока метрик |
+| `Chat` | `ws://localhost:8080/api/v1/notes.v1.NotesService/Chat` | Bidirectional | Асинхронный чат с подтверждениями |
 
 ### Использование WebSocket
 
@@ -1088,7 +1105,7 @@ WebSocket подключение автоматически конвертиру
 
 ```javascript
 // Подключение к SubscribeToEvents (server-side streaming)
-const ws = new WebSocket('ws://localhost:8080/notes.v1.NotesService/SubscribeToEvents');
+const ws = new WebSocket('ws://localhost:8080/api/v1/notes.v1.NotesService/SubscribeToEvents');
 
 ws.onopen = () => {
     console.log('WebSocket connected');
@@ -1118,7 +1135,7 @@ ws.onclose = () => {
 npm install -g wscat
 
 # Подключение к SubscribeToEvents
-wscat -c ws://localhost:8080/notes.v1.NotesService/SubscribeToEvents
+wscat -c ws://localhost:8080/api/v1/notes.v1.NotesService/SubscribeToEvents
 ```
 
 После подключения отправьте пустой JSON объект `{}` для подписки на события.
@@ -1138,10 +1155,10 @@ wscat -c ws://localhost:8080/notes.v1.NotesService/SubscribeToEvents
 
 4. Создайте заметку через curl или другой клиент:
    ```bash
-   curl -X POST http://localhost:8080/notes/v1 \
+   curl -X POST http://localhost:8080/api/v1/notes/v1 \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer my-secret-token" \
-     -d '{"title":"Test Note","content":"This is a test note"}'
+     -d '{"title":"Test Note","content":"This is a test note with sufficient length"}'
    ```
 
 5. Событие создания заметки должно появиться в WebSocket сообщениях
@@ -1154,7 +1171,7 @@ wscat -c ws://localhost:8080/notes.v1.NotesService/SubscribeToEvents
 // В браузере WebSocket API не позволяет напрямую устанавливать заголовки
 // Используйте параметр запроса или cookie
 const token = 'my-secret-token';
-const ws = new WebSocket(`ws://localhost:8080/notes.v1.NotesService/SubscribeToEvents?token=${token}`);
+const ws = new WebSocket(`ws://localhost:8080/api/v1/notes.v1.NotesService/SubscribeToEvents?token=${token}`);
 ```
 
 Или через cookie (если настроено):
@@ -1162,7 +1179,7 @@ const ws = new WebSocket(`ws://localhost:8080/notes.v1.NotesService/SubscribeToE
 ```javascript
 // Токен должен быть установлен в cookie с именем "token"
 document.cookie = "token=my-secret-token; path=/";
-const ws = new WebSocket('ws://localhost:8080/notes.v1.NotesService/SubscribeToEvents');
+const ws = new WebSocket('ws://localhost:8080/api/v1/notes.v1.NotesService/SubscribeToEvents');
 ```
 
 ### CORS и WebSocket
@@ -1170,8 +1187,7 @@ const ws = new WebSocket('ws://localhost:8080/notes.v1.NotesService/SubscribeToE
 WebSocket соединения поддерживают CORS заголовки, настроенные в HTTP Gateway. По умолчанию разрешены origins:
 - `http://localhost:3000` (React dev server)
 - `http://localhost:5173` (Vite dev server)
-- `http://localhost:8080` (Gateway)
-- `http://localhost:8082` (Swagger UI)
+- `http://localhost:8080` (Gateway и Swagger UI)
 
 Для изменения разрешенных origins используйте переменную окружения:
 ```bash
@@ -1202,9 +1218,14 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,http://example.com task run
 ### Graceful Shutdown
 
 Сервер поддерживает graceful shutdown при получении сигналов `SIGINT` или `SIGTERM`. При получении сигнала сервер:
-1. Прекращает прием новых запросов
-2. Завершает обработку активных запросов (до 5 секунд)
-3. Корректно закрывает все соединения
+
+1. **Отменяет контекст сервера** - сигнализирует всем streaming методам о завершении работы
+2. **Прекращает прием новых запросов** - Gateway и gRPC сервер перестают принимать новые соединения
+3. **Завершает обработку активных запросов** - unary запросы завершаются автоматически через контекст
+4. **Корректно завершает стримы** - все streaming методы проверяют контекст сервера и корректно завершаются
+5. **Закрывает все соединения** - после завершения активных запросов (таймаут из конфига, по умолчанию 5 секунд)
+
+**Важно:** Для корректного завершения стримов используется контекст сервера (`serverCtx`), который отменяется при shutdown. Это необходимо, так как в отличие от unary методов, где контекст автоматически отменяется при `GracefulStop()`, в стримах нужно явно проверять контекст сервера.
 
 ### gRPC Reflection
 

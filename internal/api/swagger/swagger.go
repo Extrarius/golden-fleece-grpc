@@ -28,15 +28,16 @@ func ServeSwagger(mux *http.ServeMux, swaggerSpecs embed.FS) {
 	// Создаем файловый сервер для статических файлов Swagger UI
 	// StripPrefix убирает /swagger из пути перед поиском файла
 	swaggerStaticsHandler := http.StripPrefix("/swagger", http.FileServer(http.FS(swaggerUI)))
-	// Регистрируем без метода, чтобы обрабатывались все HTTP методы (GET, POST и т.д.)
-	mux.Handle("/swagger/", swaggerStaticsHandler)
+	// Явно указываем метод GET для статических файлов (Go 1.21+)
+	mux.Handle("GET /swagger/", swaggerStaticsHandler)
 
 	// Создаем файловый сервер для swagger.json файлов (specs)
 	swaggerSpecsHandler := http.StripPrefix("/swagger/specs", http.FileServer(http.FS(swaggerSpecs)))
-	mux.Handle("/swagger/specs/", swaggerSpecsHandler)
+	// Явно указываем метод GET для спецификаций
+	mux.Handle("GET /swagger/specs/", swaggerSpecsHandler)
 
 	// Редирект с /swagger на /swagger/index.html
-	mux.HandleFunc("/swagger", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /swagger", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/swagger" {
 			http.Redirect(w, r, "/swagger/index.html", http.StatusMovedPermanently)
 			return
@@ -46,7 +47,8 @@ func ServeSwagger(mux *http.ServeMux, swaggerSpecs embed.FS) {
 
 	// Основной эндпоинт для swagger.json (для обратной совместимости с index.html)
 	// Ищем notes.swagger.json в корне swaggerSpecs
-	mux.HandleFunc("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
+	// Функция-обработчик для swagger.json (поддерживает GET и OPTIONS для CORS)
+	swaggerJSONHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
@@ -94,7 +96,11 @@ func ServeSwagger(mux *http.ServeMux, swaggerSpecs embed.FS) {
 
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Write(swaggerJSON)
-	})
+	}
+
+	// Регистрируем GET и OPTIONS для swagger.json (CORS preflight)
+	mux.HandleFunc("GET /swagger.json", swaggerJSONHandler)
+	mux.HandleFunc("OPTIONS /swagger.json", swaggerJSONHandler)
 
 	log.Println("Swagger UI enabled at /swagger/")
 	log.Println("Swagger JSON available at /swagger.json")

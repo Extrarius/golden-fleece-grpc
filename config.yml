@@ -12,7 +12,7 @@ server:
   graceful_shutdown_timeout: ${SERVER_GRACEFUL_SHUTDOWN_TIMEOUT:-5}
 
 gateway:
-  cors_allowed_origins: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080,http://localhost:8082}
+  cors_allowed_origins: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
   cors_max_age: ${CORS_MAX_AGE:-86400}
   rate_limit_rps: ${RATE_LIMIT_RPS:-100}
   rate_limit_burst: ${RATE_LIMIT_BURST:-10}

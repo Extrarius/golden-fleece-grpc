@@ -57,20 +57,12 @@ func Setup(ctx context.Context, grpcAddr string, httpAddr string, cfg *config.Co
 		return fmt.Errorf("failed to register gateway: %w", err)
 	}
 
-	// Добавляем gateway handler на общий mux
-	// Оборачиваем runtime.ServeMux в handler, который пропускает /swagger/ пути
-	// чтобы они обрабатывались другими handlers (Swagger UI)
-	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Пропускаем пути к Swagger UI - они должны обрабатываться другими handlers
-		if strings.HasPrefix(r.URL.Path, "/swagger") {
-			// Если путь начинается с /swagger, но не обработан Swagger handler,
-			// значит Swagger не зарегистрирован или путь неверный - возвращаем 404
-			http.NotFound(w, r)
-			return
-		}
-		// Все остальные пути обрабатываются Gateway
-		gwMux.ServeHTTP(w, r)
-	}))
+	// Добавляем gateway handler на общий mux с префиксом /api/v1/
+	// http.ServeMux автоматически обрабатывает более специфичные пути первыми,
+	// поэтому /swagger/ будет обработан Swagger handler'ом до Gateway
+	// http.StripPrefix удаляет /api/v1 из пути перед передачей в Gateway,
+	// поэтому Gateway получает оригинальные пути /notes/v1/* из proto
+	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", gwMux))
 
 	// Применение middleware (в обратном порядке выполнения):
 	// 1. WebSocket Proxy (для streaming методов - самый внешний слой)
@@ -87,11 +79,18 @@ func Setup(ctx context.Context, grpcAddr string, httpAddr string, cfg *config.Co
 
 	// Запуск HTTP сервера Gateway
 	// Swagger UI доступен по адресу /swagger/ (если добавлен через ServeSwagger)
+	// REST API эндпоинты доступны с префиксом /api/v1/:
+	// - POST /api/v1/notes/v1 - создание заметки
+	// - GET /api/v1/notes/v1 - список заметок
+	// - GET /api/v1/notes/v1/{id} - получение заметки
+	// - PUT /api/v1/notes/v1/{id} - обновление заметки
+	// - DELETE /api/v1/notes/v1/{id} - удаление заметки
 	// WebSocket эндпоинты доступны для streaming методов:
-	// - /notes.v1.NotesService/SubscribeToEvents (server-side streaming)
-	// - /notes.v1.NotesService/UploadMetrics (client-side streaming)
-	// - /notes.v1.NotesService/Chat (bidirectional streaming)
+	// - /api/v1/notes.v1.NotesService/SubscribeToEvents (server-side streaming)
+	// - /api/v1/notes.v1.NotesService/UploadMetrics (client-side streaming)
+	// - /api/v1/notes.v1.NotesService/Chat (bidirectional streaming)
 	log.Printf("HTTP Gateway server listening on %s", httpAddr)
+	log.Printf("API endpoints available at /api/v1/")
 	log.Printf("CORS enabled for origins: %s", cfg.CORSAllowedOrigins)
 	log.Printf("WebSocket proxy enabled for streaming methods")
 	return http.ListenAndServe(httpAddr, handler)
@@ -129,10 +128,10 @@ func setupCORS(cfg *config.ConfigGateway) *cors.Cors {
 //
 // Библиотека wsproxy автоматически обнаруживает и проксирует все streaming методы gRPC
 // через gRPC-Gateway, конвертируя WebSocket соединения в gRPC стримы.
-// Streaming методы доступны через WebSocket по тем же путям, что и обычные методы:
-// - /notes.v1.NotesService/SubscribeToEvents (server-side streaming)
-// - /notes.v1.NotesService/UploadMetrics (client-side streaming)
-// - /notes.v1.NotesService/Chat (bidirectional streaming)
+// Streaming методы доступны через WebSocket с префиксом /api/v1/:
+// - /api/v1/notes.v1.NotesService/SubscribeToEvents (server-side streaming)
+// - /api/v1/notes.v1.NotesService/UploadMetrics (client-side streaming)
+// - /api/v1/notes.v1.NotesService/Chat (bidirectional streaming)
 func setupWebSocketProxy(handler http.Handler) http.Handler {
 	// wsproxy.WebsocketProxy автоматически обрабатывает WebSocket upgrade
 	// для всех streaming методов gRPC через gRPC-Gateway
