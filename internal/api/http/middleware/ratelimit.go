@@ -8,9 +8,17 @@ import (
 )
 
 // RateLimit ограничивает количество запросов (rate limiting)
-func RateLimit(next http.Handler) http.Handler {
-	// 100 запросов в секунду, burst 10 (разрешает кратковременные всплески)
-	limiter := rate.NewLimiter(rate.Limit(100), 10)
+// rps - запросов в секунду, burst - разрешает кратковременные всплески
+func RateLimit(next http.Handler, rps int, burst int) http.Handler {
+	// Значения по умолчанию если не указаны
+	if rps <= 0 {
+		rps = 100
+	}
+	if burst <= 0 {
+		burst = 10
+	}
+
+	limiter := rate.NewLimiter(rate.Limit(rps), burst)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !limiter.Allow() {

@@ -7,11 +7,16 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+
+	"notes-service/internal/config"
 )
 
 //go:embed embed
 var embeddedFiles embed.FS
+
+const configFile = "config.yml"
 
 // getWSLIP пытается получить IP адрес WSL машины
 func getWSLIP() (string, error) {
@@ -32,10 +37,16 @@ func getWSLIP() (string, error) {
 }
 
 func main() {
-	// Получаем порт из переменной окружения или используем значение по умолчанию
-	port := os.Getenv("SWAGGER_PORT")
-	if port == "" {
-		port = "8082"
+	// Загружаем конфигурацию из файла
+	appConfig, err := config.InitConfig[config.Config](configFile)
+	if err != nil {
+		log.Fatalf("Error initializing config: %v", err)
+	}
+
+	// Получаем порт из конфига
+	port := strconv.Itoa(appConfig.Swagger.Port)
+	if port == "0" {
+		port = "8082" // Значение по умолчанию если не указано в конфиге
 	}
 
 	// Используем 0.0.0.0 для прослушивания на всех IPv4 интерфейсах

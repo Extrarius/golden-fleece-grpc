@@ -7,28 +7,31 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"notes-service/internal/api/gateway"
 	grpcapi "notes-service/internal/api/grpc"
+	"notes-service/internal/config"
 	"notes-service/internal/repository/memory"
 	notesService "notes-service/internal/service/notes"
 )
 
-const (
-	defaultPort     = "50051"
-	defaultHTTPPort = "8080"
-)
+const configFile = "config.yml"
 
 func main() {
-	// Получаем порт из переменной окружения или используем значение по умолчанию
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = defaultPort
+	// Загружаем конфигурацию из файла
+	appConfig, err := config.InitConfig[config.Config](configFile)
+	if err != nil {
+		log.Fatalf("Error initializing config: %v", err)
 	}
 
-	addr := "0.0.0.0:" + port
+	// Получаем порты из конфига
+	grpcPort := strconv.Itoa(appConfig.Server.PortGRPC)
+	httpPort := strconv.Itoa(appConfig.Server.PortHTTP)
+
+	addr := "0.0.0.0:" + grpcPort
 	log.Printf("Starting Notes Service on %s", addr)
 
 	// Создаем listener
@@ -64,10 +67,6 @@ func main() {
 	}()
 
 	// Запуск HTTP Gateway сервера в горутине
-	httpPort := os.Getenv("HTTP_PORT")
-	if httpPort == "" {
-		httpPort = defaultHTTPPort
-	}
 	httpAddr := "0.0.0.0:" + httpPort
 
 	gatewayCtx, gatewayCancel := context.WithCancel(context.Background())
@@ -79,7 +78,7 @@ func main() {
 	}
 
 	go func() {
-		if err := gateway.Setup(gatewayCtx, grpcAddr, httpAddr); err != nil {
+		if err := gateway.Setup(gatewayCtx, grpcAddr, httpAddr, appConfig.Gateway); err != nil {
 			errChan <- fmt.Errorf("HTTP Gateway error: %w", err)
 		}
 	}()
@@ -93,9 +92,10 @@ func main() {
 	}
 
 	// Graceful shutdown
-	// Даем серверу до 5 секунд на завершение активных запросов
+	// Даем серверу время на завершение активных запросов из конфига
 	gatewayCancel() // Отменяем контекст Gateway для остановки HTTP сервера
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownTimeout := time.Duration(appConfig.Server.GracefulShutdownTimeout) * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	stopped := make(chan struct{})

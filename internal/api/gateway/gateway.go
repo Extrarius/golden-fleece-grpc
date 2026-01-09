@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
 	"notes-service/internal/api/http/middleware"
+	"notes-service/internal/config"
 	notesv1 "notes-service/pkg/proto/notes/v1"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -20,7 +20,7 @@ import (
 )
 
 // Setup настраивает и запускает HTTP Gateway сервер
-func Setup(ctx context.Context, grpcAddr string, httpAddr string) error {
+func Setup(ctx context.Context, grpcAddr string, httpAddr string, cfg *config.ConfigGateway) error {
 	// Создаем новый ServeMux для HTTP Gateway с настройкой передачи метаданных
 	// Передаем HTTP заголовки (особенно Authorization) в gRPC metadata
 	mux := runtime.NewServeMux(
@@ -57,9 +57,9 @@ func Setup(ctx context.Context, grpcAddr string, httpAddr string) error {
 	// 3. Logging (логирует все запросы)
 	// 4. Rate Limiting (ограничивает количество запросов)
 	var handler http.Handler = mux
-	handler = middleware.RateLimit(handler)
+	handler = middleware.RateLimit(handler, cfg.RateLimitRPS, cfg.RateLimitBurst)
 	handler = middleware.Logging(handler)
-	c := setupCORS()
+	c := setupCORS(cfg)
 	handler = c.Handler(handler)
 	// WebSocket proxy должен быть последним (самым внешним), чтобы корректно обрабатывать upgrade
 	handler = setupWebSocketProxy(handler)
@@ -71,29 +71,23 @@ func Setup(ctx context.Context, grpcAddr string, httpAddr string) error {
 	// - /notes.v1.NotesService/SubscribeToEvents (server-side streaming)
 	// - /notes.v1.NotesService/UploadMetrics (client-side streaming)
 	// - /notes.v1.NotesService/Chat (bidirectional streaming)
-	corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
-	if corsOrigins == "" {
-		corsOrigins = "http://localhost:3000,http://localhost:5173,http://localhost:8080,http://localhost:8082"
-	}
 	log.Printf("HTTP Gateway server listening on %s", httpAddr)
-	log.Printf("CORS enabled for origins: %s", corsOrigins)
+	log.Printf("CORS enabled for origins: %s", cfg.CORSAllowedOrigins)
 	log.Printf("WebSocket proxy enabled for streaming methods")
 	return http.ListenAndServe(httpAddr, handler)
 }
 
-// setupCORS настраивает CORS middleware с поддержкой переменных окружения
-func setupCORS() *cors.Cors {
-	// Получаем разрешенные origins из переменной окружения
-	allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
-	if allowedOrigins == "" {
-		// По умолчанию разрешаем локальные dev серверы и Swagger UI
-		allowedOrigins = "http://localhost:3000,http://localhost:5173,http://localhost:8080,http://localhost:8082"
-	}
-
-	origins := strings.Split(allowedOrigins, ",")
+// setupCORS настраивает CORS middleware используя конфигурацию
+func setupCORS(cfg *config.ConfigGateway) *cors.Cors {
+	origins := strings.Split(cfg.CORSAllowedOrigins, ",")
 	// Убираем пробелы из origins
 	for i := range origins {
 		origins[i] = strings.TrimSpace(origins[i])
+	}
+
+	maxAge := cfg.CORSMaxAge
+	if maxAge == 0 {
+		maxAge = 86400 // 24 часа по умолчанию
 	}
 
 	return cors.New(cors.Options{
@@ -105,7 +99,7 @@ func setupCORS() *cors.Cors {
 			"X-Requested-With",
 		},
 		AllowCredentials: true,
-		MaxAge:           86400, // 24 часа
+		MaxAge:           maxAge,
 	})
 }
 
