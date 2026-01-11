@@ -7,23 +7,46 @@ option go_package = "notes/v1;notesv1";
 
 import "google/protobuf/timestamp.proto";
 import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
 
 // NotesService предоставляет методы для управления заметками
 service NotesService {
   // CreateNote создает новую заметку
-  rpc CreateNote(CreateNoteRequest) returns (CreateNoteResponse);
+  rpc CreateNote(CreateNoteRequest) returns (CreateNoteResponse) {
+    option (google.api.http) = {
+      post: "/notes/v1"
+      body: "*"
+    };
+  }
   
   // GetNote возвращает заметку по её UUID
-  rpc GetNote(GetNoteRequest) returns (GetNoteResponse);
+  rpc GetNote(GetNoteRequest) returns (GetNoteResponse) {
+    option (google.api.http) = {
+      get: "/notes/v1/{id}"
+    };
+  }
   
   // ListNotes возвращает список всех заметок
-  rpc ListNotes(ListNotesRequest) returns (ListNotesResponse);
+  rpc ListNotes(ListNotesRequest) returns (ListNotesResponse) {
+    option (google.api.http) = {
+      get: "/notes/v1"
+    };
+  }
   
   // UpdateNote обновляет существующую заметку
-  rpc UpdateNote(UpdateNoteRequest) returns (UpdateNoteResponse);
+  rpc UpdateNote(UpdateNoteRequest) returns (UpdateNoteResponse) {
+    option (google.api.http) = {
+      put: "/notes/v1/{id}"
+      body: "*"
+    };
+  }
   
   // DeleteNote удаляет заметку по UUID
-  rpc DeleteNote(DeleteNoteRequest) returns (DeleteNoteResponse);
+  rpc DeleteNote(DeleteNoteRequest) returns (DeleteNoteResponse) {
+    option (google.api.http) = {
+      delete: "/notes/v1/{id}"
+    };
+  }
   
   // SubscribeToEvents подписывается на события создания заметок
   rpc SubscribeToEvents(SubscribeToEventsRequest) returns (stream EventResponse);

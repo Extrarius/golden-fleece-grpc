@@ -7,6 +7,9 @@ vars:
   PROTOC_GEN_GO: '{{.BIN_DIR}}/protoc-gen-go'
   PROTOC_GEN_GO_GRPC: '{{.BIN_DIR}}/protoc-gen-go-grpc'
   PROTOC_GEN_VALIDATE: '{{.BIN_DIR}}/protoc-gen-validate'
+  PROTOC_GEN_GRPC_GATEWAY: '{{.BIN_DIR}}/protoc-gen-grpc-gateway'
+  PROTOC_GEN_OPENAPIV2: '{{.BIN_DIR}}/protoc-gen-openapiv2'
+  SWAGGER_OUT: '{{.ROOT_DIR}}/pkg/api'
   # Прокси для обхода блокировок proxy.golang.org
   GOPROXY: 'https://goproxy.cn,https://goproxy.io,https://proxy.golang.org,direct'
   # Форматтеры и линтеры
@@ -19,7 +22,7 @@ vars:
 
 tasks:
   install-tools:
-    desc: "Устанавливает инструменты (easyp, protoc-gen-go, protoc-gen-go-grpc) в ./bin/"
+    desc: "Устанавливает инструменты (easyp, protoc-gen-go, protoc-gen-go-grpc, Gateway плагины) в ./bin/"
     summary: |
       Проверяет наличие инструментов в директории bin.
       Если инструменты не найдены, они будут автоматически установлены.
@@ -38,10 +41,20 @@ tasks:
           echo '📦 Устанавливаем protoc-gen-go-grpc...'
           GOBIN={{.BIN_DIR}} go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
         }
+        [ -f {{.PROTOC_GEN_GRPC_GATEWAY}} ] || {
+          echo '📦 Устанавливаем protoc-gen-grpc-gateway...'
+          GOBIN={{.BIN_DIR}} go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@latest
+        }
+        [ -f {{.PROTOC_GEN_OPENAPIV2}} ] || {
+          echo '📦 Устанавливаем protoc-gen-openapiv2...'
+          GOBIN={{.BIN_DIR}} go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@latest
+        }
     status:
       - test -x {{.EASYP}}
       - test -x {{.PROTOC_GEN_GO}}
       - test -x {{.PROTOC_GEN_GO_GRPC}}
+      - test -x {{.PROTOC_GEN_GRPC_GATEWAY}}
+      - test -x {{.PROTOC_GEN_OPENAPIV2}}
 
   mod-update:
     desc: "Обновление зависимостей proto через easyp"
@@ -73,10 +86,122 @@ tasks:
       - test -x {{.PROTOC_GEN_VALIDATE}}
 
   generate:
-    desc: "Генерация Go кода из proto файлов"
-    deps: [ install-tools ]
+    desc: "Генерация Go кода из proto файлов (включая Gateway)"
+    deps: [ install-tools, mod-update ]
     cmds:
-      - '{{.EASYP}} generate --path proto'
+      - |
+        echo "📦 Генерируем основной proto код через easyp..."
+        {{.EASYP}} generate --path proto
+      - |
+        echo "🌐 Генерируем gRPC Gateway код и OpenAPI спецификацию..."
+        task generate:gateway
+
+  generate:gateway:
+    desc: "Генерация gRPC Gateway кода и OpenAPI спецификации"
+    deps: [ install-tools, mod-update ]
+    cmds:
+      - |
+        echo "🌐 Генерируем gRPC Gateway код и OpenAPI спецификацию..."
+        
+        # Проверяем наличие protoc или используем Docker
+        PROTOC_CMD="protoc"
+        if ! command -v protoc &> /dev/null; then
+          if command -v docker &> /dev/null; then
+            echo "⚠️  protoc не найден, используем Docker..."
+            PROTOC_CMD="docker run --rm -v $(pwd):/workspace -w /workspace namely/protoc-all:latest"
+          else
+            echo "❌ Ошибка: protoc не установлен. Варианты установки:"
+            echo "   1. Ubuntu/Debian: sudo apt install protobuf-compiler"
+            echo "   2. Snap: sudo snap install protobuf"
+            echo "   3. Скачать бинарник: https://github.com/protocolbuffers/protobuf/releases"
+            echo "   4. Или установите Docker для использования protoc через Docker"
+            exit 1
+          fi
+        fi
+        
+        mkdir -p {{.SWAGGER_OUT}}
+        
+        # Получаем пути к зависимостям через go list
+        GOOGLEAPIS_PATH=$(go list -m -f '{{.Dir}}' google.golang.org/genproto/googleapis/api 2>/dev/null || echo "")
+        PROTOBUF_PATH=$(go list -m -f '{{.Dir}}' google.golang.org/protobuf 2>/dev/null || echo "")
+        BUF_VALIDATE_PATH=$(go list -m -f '{{.Dir}}' buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go 2>/dev/null || echo "")
+        GRPC_GATEWAY_PATH=$(go list -m -f '{{.Dir}}' github.com/grpc-ecosystem/grpc-gateway 2>/dev/null || echo "")
+        
+        # Если googleapis не найден напрямую, ищем в grpc-gateway или через find
+        if [ -z "$GOOGLEAPIS_PATH" ] || [ ! -d "$GOOGLEAPIS_PATH/google/api" ]; then
+          if [ -n "$GRPC_GATEWAY_PATH" ] && [ -d "$GRPC_GATEWAY_PATH/third_party/googleapis" ]; then
+            GOOGLEAPIS_PATH="$GRPC_GATEWAY_PATH/third_party/googleapis"
+          else
+            # Ищем в go/pkg/mod - нужен корневой каталог (на 3 уровня выше от annotations.proto)
+            FOUND_PATH=$(find $HOME/go/pkg/mod -name "annotations.proto" -path "*/google/api/*" 2>/dev/null | head -1)
+            if [ -n "$FOUND_PATH" ]; then
+              GOOGLEAPIS_PATH=$(echo "$FOUND_PATH" | xargs dirname | xargs dirname | xargs dirname)
+            fi
+          fi
+        fi
+        
+        # Если buf/validate не найден, ищем через find в протовалидате
+        if [ -z "$BUF_VALIDATE_PATH" ] || [ ! -d "$BUF_VALIDATE_PATH/buf/validate" ]; then
+          # Ищем в github.com/bufbuild/protovalidate
+          FOUND_VALIDATE=$(find $HOME/go/pkg/mod/github.com/bufbuild/protovalidate* -name "validate.proto" -path "*/buf/validate/*" 2>/dev/null | head -1)
+          if [ -n "$FOUND_VALIDATE" ]; then
+            # Путь должен быть на 3 уровня выше от validate.proto (где находится protovalidate/)
+            BUF_VALIDATE_PATH=$(echo "$FOUND_VALIDATE" | xargs dirname | xargs dirname | xargs dirname)
+          fi
+        fi
+        
+        # Собираем пути для включения
+        INCLUDE_PATHS="-Iproto"
+        
+        # Добавляем googleapis
+        if [ -n "$GOOGLEAPIS_PATH" ] && [ -d "$GOOGLEAPIS_PATH" ]; then
+          INCLUDE_PATHS="$INCLUDE_PATHS -I$GOOGLEAPIS_PATH"
+        fi
+        
+        # Добавляем protobuf types
+        if [ -n "$PROTOBUF_PATH" ]; then
+          if [ -d "$PROTOBUF_PATH/types" ]; then
+            INCLUDE_PATHS="$INCLUDE_PATHS -I$PROTOBUF_PATH/types"
+          elif [ -d "$PROTOBUF_PATH" ]; then
+            INCLUDE_PATHS="$INCLUDE_PATHS -I$PROTOBUF_PATH"
+          fi
+        fi
+        
+        # Добавляем buf/validate
+        if [ -n "$BUF_VALIDATE_PATH" ] && [ -d "$BUF_VALIDATE_PATH" ]; then
+          INCLUDE_PATHS="$INCLUDE_PATHS -I$BUF_VALIDATE_PATH"
+        fi
+        
+        echo "   Используем пути: $INCLUDE_PATHS"
+        
+        # Генерируем Gateway код и Swagger
+        if command -v docker &> /dev/null && ! command -v protoc &> /dev/null; then
+          # Используем Docker для protoc
+          echo "   Используем Docker для protoc..."
+          docker run --rm \
+            -v $(pwd):/workspace \
+            -w /workspace \
+            -v {{.BIN_DIR}}:/plugins \
+            namely/protoc-all:latest \
+            protoc $INCLUDE_PATHS \
+            --plugin=protoc-gen-grpc-gateway=/plugins/protoc-gen-grpc-gateway \
+            --grpc-gateway_out=logtostderr=true,paths=source_relative:pkg/proto \
+            --plugin=protoc-gen-openapiv2=/plugins/protoc-gen-openapiv2 \
+            --openapiv2_out=logtostderr=true:{{.SWAGGER_OUT}} \
+            --openapiv2_opt=json_names_for_fields=false \
+            proto/notes/v1/notes.proto
+        else
+          # Используем локальный protoc
+          protoc $INCLUDE_PATHS \
+            --plugin=protoc-gen-grpc-gateway={{.PROTOC_GEN_GRPC_GATEWAY}} \
+            --grpc-gateway_out=logtostderr=true,paths=source_relative:pkg/proto \
+            --plugin=protoc-gen-openapiv2={{.PROTOC_GEN_OPENAPIV2}} \
+            --openapiv2_out=logtostderr=true:{{.SWAGGER_OUT}} \
+            --openapiv2_opt=json_names_for_fields=false \
+            proto/notes/v1/notes.proto
+        fi
+        
+        echo "✅ Gateway код и OpenAPI спецификация сгенерированы успешно"
 
   lint:
     desc: "Линтинг proto файлов"
@@ -159,7 +284,7 @@ tasks:
         echo "✅ Линтинг Go кода завершен успешно"
 
   run:
-    desc: "Запуск сервера (через go run, без сборки)"
+    desc: "Запуск сервера (gRPC + HTTP Gateway + Swagger UI на порту 8080)"
     cmds:
       - go run cmd/server/main.go
 

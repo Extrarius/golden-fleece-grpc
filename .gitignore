@@ -7,6 +7,7 @@
 # IDE
 .idea/
 .vscode/
+.cursor/
 
 # Go
 *.exe
@@ -16,4 +17,16 @@
 # Временные файлы/папки
 1/
 _final/
+node_modules
+*Zone.Identifier*
 
+# External dependencies
+swagger-ui/
+swagger-ui-dist/
+
+# Embedded files for swagger-server (копии оригинальных файлов)
+cmd/server/swagger-specs/
+
+# Test files
+test-cors.html
+test-websocket.html

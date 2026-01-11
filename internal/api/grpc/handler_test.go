@@ -70,7 +70,7 @@ func TestGetNote_NotFoundWithDetails(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(mockService)
+	handler := NewHandler(mockService, context.Background())
 
 	// Act
 	_, err := handler.GetNote(ctx, &notesv1.GetNoteRequest{Id: noteID})
@@ -99,9 +99,9 @@ func TestGetNote_Success(t *testing.T) {
 	noteID := "test-id-123"
 
 	expectedNote := model.Note{
-		ID:        noteID,
-		Title:     "Test Title",
-		Content:   "Test Content",
+		ID:      noteID,
+		Title:   "Test Title",
+		Content: "Test Content",
 	}
 
 	mockService := &mockNoteService{
@@ -113,7 +113,7 @@ func TestGetNote_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(mockService)
+	handler := NewHandler(mockService, context.Background())
 
 	// Act
 	resp, err := handler.GetNote(ctx, &notesv1.GetNoteRequest{Id: noteID})
@@ -195,4 +195,3 @@ func TestHandleError_InternalError(t *testing.T) {
 	assert.Contains(t, errorDetails.Reason, "internal error occurred", "Expected reason to contain internal error message")
 	assert.Equal(t, "INTERNAL_ERROR", errorDetails.InternalErrorCode, "Expected internal error code to be 'INTERNAL_ERROR'")
 }
-

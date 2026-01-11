@@ -194,7 +194,7 @@ func testErrorHandling(ctx context.Context, client notesv1.NotesServiceClient) {
 	}
 }
 
-// testSuccessfulRequest демонстрирует успешный запрос (опционально)
+// testSuccessfulRequest демонстрирует успешный запрос
 func testSuccessfulRequest(ctx context.Context, client notesv1.NotesServiceClient) {
 	log.Println("\n=== Testing Successful Request ===")
 

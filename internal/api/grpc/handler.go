@@ -35,12 +35,15 @@ type Handler struct {
 	notesv1.UnimplementedNotesServiceServer
 
 	noteService svc.NoteService
+	serverCtx   context.Context // Контекст сервера, отменяется при graceful shutdown
 }
 
 // NewHandler создает новый экземпляр gRPC хэндлера
-func NewHandler(noteService svc.NoteService) *Handler {
+// serverCtx - контекст сервера, который отменяется при shutdown для корректного завершения стримов
+func NewHandler(noteService svc.NoteService, serverCtx context.Context) *Handler {
 	return &Handler{
 		noteService: noteService,
+		serverCtx:   serverCtx,
 	}
 }
 
@@ -179,12 +182,21 @@ func (h *Handler) SubscribeToEvents(req *notesv1.SubscribeToEventsRequest, strea
 					return
 				}
 			case <-ctx.Done():
+				// Клиент отключился
+				log.Printf("Client disconnected from events stream (health check goroutine)")
+				return
+			case <-h.serverCtx.Done():
+				// Сервер завершает работу
+				log.Printf("Server shutdown during events stream (health check goroutine)")
 				return
 			}
 		}
 	}()
 
 	// 4. Основной цикл обработки событий
+	// Проверяем оба контекста:
+	// - ctx (stream.Context()) - отменяется при отключении клиента
+	// - h.serverCtx - отменяется при shutdown сервера
 	for {
 		select {
 		case note := <-eventCh:
@@ -210,6 +222,10 @@ func (h *Handler) SubscribeToEvents(req *notesv1.SubscribeToEventsRequest, strea
 			// Клиент отключился
 			log.Printf("Client disconnected from events stream")
 			return nil
+		case <-h.serverCtx.Done():
+			// Сервер завершает работу (graceful shutdown)
+			log.Printf("Server shutdown during events stream")
+			return h.serverCtx.Err()
 		}
 	}
 }
@@ -219,10 +235,28 @@ func (h *Handler) UploadMetrics(stream notesv1.NotesService_UploadMetricsServer)
 	var sum float64
 	var count int64
 
+	ctx := stream.Context()
 	log.Println("Starting to receive metrics stream...")
 
 	// Читаем метрики из стрима до io.EOF
+	// Проверяем оба контекста:
+	// - ctx (stream.Context()) - отменяется при отключении клиента
+	// - h.serverCtx - отменяется при shutdown сервера
 	for {
+		// Проверяем контекст сервера перед Recv
+		select {
+		case <-ctx.Done():
+			// Клиент отключился
+			log.Printf("Client disconnected from metrics stream")
+			return ctx.Err()
+		case <-h.serverCtx.Done():
+			// Сервер завершает работу (graceful shutdown)
+			log.Printf("Server shutdown during metrics stream")
+			return h.serverCtx.Err()
+		default:
+			// Продолжаем работу
+		}
+
 		metric, err := stream.Recv()
 		if err == io.EOF {
 			// Клиент завершил отправку, вычисляем результат
@@ -360,11 +394,18 @@ func (h *Handler) Chat(stream notesv1.NotesService_ChatServer) error {
 			}
 
 			// Проверка отмены контекста
+			// Проверяем оба контекста:
+			// - ctx (stream.Context()) - отменяется при отключении клиента
+			// - h.serverCtx - отменяется при shutdown сервера
 			select {
 			case <-ctx.Done():
-				log.Println("Context cancelled in receive goroutine")
+				log.Printf("Client disconnected in receive goroutine")
+				return
+			case <-h.serverCtx.Done():
+				log.Printf("Server shutdown in receive goroutine")
 				return
 			default:
+				// Продолжаем работу
 			}
 		}
 	}()
@@ -399,7 +440,12 @@ func (h *Handler) Chat(stream notesv1.NotesService_ChatServer) error {
 				log.Printf("📤 Sent notification: correlation_id=%s", notification.GetCorrelationId())
 
 			case <-ctx.Done():
-				log.Println("Context cancelled in send goroutine")
+				// Клиент отключился
+				log.Printf("Client disconnected in send goroutine")
+				return
+			case <-h.serverCtx.Done():
+				// Сервер завершает работу (graceful shutdown)
+				log.Printf("Server shutdown in send goroutine")
 				return
 			}
 		}

@@ -1,0 +1,305 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Package notes.v1 содержит API для работы с заметками",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "NotesService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/notes/v1": {
+      "get": {
+        "summary": "ListNotes возвращает список всех заметок",
+        "operationId": "NotesService_ListNotes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListNotesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "NotesService"
+        ]
+      },
+      "post": {
+        "summary": "CreateNote создает новую заметку",
+        "operationId": "NotesService_CreateNote",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateNoteResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateNoteRequest"
+            }
+          }
+        ],
+        "tags": [
+          "NotesService"
+        ]
+      }
+    },
+    "/notes/v1/{id}": {
+      "get": {
+        "summary": "GetNote возвращает заметку по её UUID",
+        "operationId": "NotesService_GetNote",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetNoteResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "UUID заметки",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NotesService"
+        ]
+      },
+      "delete": {
+        "summary": "DeleteNote удаляет заметку по UUID",
+        "operationId": "NotesService_DeleteNote",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteNoteResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "UUID заметки",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NotesService"
+        ]
+      },
+      "put": {
+        "summary": "UpdateNote обновляет существующую заметку",
+        "operationId": "NotesService_UpdateNote",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateNoteResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "UUID заметки",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/NotesServiceUpdateNoteBody"
+            }
+          }
+        ],
+        "tags": [
+          "NotesService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "NotesServiceUpdateNoteBody": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "title": "Новый заголовок (опционально)"
+        },
+        "content": {
+          "type": "string",
+          "title": "Новое содержание (опционально)"
+        }
+      },
+      "title": "Запрос на обновление заметки"
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1CreateNoteRequest": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "title": "Заголовок заметки (обязательное, минимум 5 символов, максимум 255)"
+        },
+        "content": {
+          "type": "string",
+          "title": "Содержание заметки (обязательное, минимум 10 символов)"
+        }
+      },
+      "title": "Запрос на создание заметки"
+    },
+    "v1CreateNoteResponse": {
+      "type": "object",
+      "properties": {
+        "note": {
+          "$ref": "#/definitions/v1Note"
+        }
+      },
+      "title": "Ответ с созданной заметкой"
+    },
+    "v1DeleteNoteResponse": {
+      "type": "object",
+      "description": "Пустой ответ, успех определяется через gRPC статус",
+      "title": "Ответ на удаление заметки"
+    },
+    "v1GetNoteResponse": {
+      "type": "object",
+      "properties": {
+        "note": {
+          "$ref": "#/definitions/v1Note"
+        }
+      },
+      "title": "Ответ с заметкой"
+    },
+    "v1ListNotesResponse": {
+      "type": "object",
+      "properties": {
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Note"
+          }
+        }
+      },
+      "title": "Ответ со списком заметок"
+    },
+    "v1Note": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "title": "UUID заметки"
+        },
+        "title": {
+          "type": "string",
+          "title": "Заголовок заметки"
+        },
+        "content": {
+          "type": "string",
+          "title": "Содержание заметки"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Дата создания"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Дата последнего обновления"
+        }
+      },
+      "title": "Note представляет заметку"
+    },
+    "v1UpdateNoteResponse": {
+      "type": "object",
+      "properties": {
+        "note": {
+          "$ref": "#/definitions/v1Note"
+        }
+      },
+      "title": "Ответ с обновленной заметкой"
+    }
+  }
+}
