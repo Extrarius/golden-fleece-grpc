@@ -95,7 +95,10 @@ func ServeSwagger(mux *http.ServeMux, swaggerSpecs embed.FS) {
 		}
 
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.Write(swaggerJSON)
+		if _, err := w.Write(swaggerJSON); err != nil {
+			http.Error(w, "Failed to write response", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Регистрируем GET и OPTIONS для swagger.json (CORS preflight)

@@ -1,6 +1,9 @@
 # Локальные бинарники
 /bin/
 
+# Исполняемые файлы плагинов в корне (должны быть в bin/)
+protoc-gen-*
+
 # Сгенерированный proto код (опционально)
 # /pkg/proto/
 
@@ -30,3 +33,7 @@ cmd/server/swagger-specs/
 # Test files
 test-cors.html
 test-websocket.html
+
+# Backup files
+*.backup
+**/*.backup

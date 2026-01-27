@@ -7,8 +7,7 @@ import (
 	"os"
 	"time"
 
-	_ "notes-service/pkg/proto/notes/v1" // Явный импорт для регистрации proto типов
-	notesv1 "notes-service/pkg/proto/notes/v1"
+	notesv1 "notes-service/pkg/proto/notes/v1" // Импорт для регистрации proto типов и использования клиента
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -47,7 +46,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			log.Printf("Failed to close connection: %v", err)
+		}
+	}()
 
 	log.Println("Connected successfully!")
 

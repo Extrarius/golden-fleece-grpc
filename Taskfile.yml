@@ -7,6 +7,7 @@ vars:
   PROTOC_GEN_GO: '{{.BIN_DIR}}/protoc-gen-go'
   PROTOC_GEN_GO_GRPC: '{{.BIN_DIR}}/protoc-gen-go-grpc'
   PROTOC_GEN_VALIDATE: '{{.BIN_DIR}}/protoc-gen-validate'
+  PROTOC_GEN_SIMPLE_VALIDATE: '{{.BIN_DIR}}/protoc-gen-simple-validate'
   PROTOC_GEN_GRPC_GATEWAY: '{{.BIN_DIR}}/protoc-gen-grpc-gateway'
   PROTOC_GEN_OPENAPIV2: '{{.BIN_DIR}}/protoc-gen-openapiv2'
   SWAGGER_OUT: '{{.ROOT_DIR}}/pkg/api'
@@ -85,9 +86,29 @@ tasks:
     status:
       - test -x {{.PROTOC_GEN_VALIDATE}}
 
+  install-simple-validate:
+    desc: "Устанавливает protoc-gen-simple-validate"
+    summary: |
+      Проверяет наличие protoc-gen-simple-validate в директории bin.
+      Если инструмент не найден, он будет автоматически установлен.
+      
+      Плагин генерирует методы Validate() для protobuf сообщений на основе
+      аннотаций validate.rules из protoc-gen-validate.
+      
+      Использует go install для установки.
+    cmds:
+      - |
+        mkdir -p {{.BIN_DIR}}
+        [ -f {{.PROTOC_GEN_SIMPLE_VALIDATE}} ] || {
+          echo '📦 Устанавливаем protoc-gen-simple-validate...'
+          GOBIN={{.BIN_DIR}} go install ./internal/tools/protoc-gen-simple-validate
+        }
+    status:
+      - test -x {{.PROTOC_GEN_SIMPLE_VALIDATE}}
+
   generate:
     desc: "Генерация Go кода из proto файлов (включая Gateway)"
-    deps: [ install-tools, mod-update ]
+    deps: [ install-tools, install-simple-validate, mod-update ]
     cmds:
       - |
         echo "📦 Генерируем основной proto код через easyp..."
@@ -170,6 +191,24 @@ tasks:
         # Добавляем buf/validate
         if [ -n "$BUF_VALIDATE_PATH" ] && [ -d "$BUF_VALIDATE_PATH" ]; then
           INCLUDE_PATHS="$INCLUDE_PATHS -I$BUF_VALIDATE_PATH"
+        fi
+        
+        # Добавляем protoc-gen-validate (validate/validate.proto)
+        # Важно: путь должен указывать на родительский каталог, чтобы protoc мог найти validate/validate.proto
+        PROTOC_GEN_VALIDATE_PATH=$(go list -m -f '{{.Dir}}' github.com/envoyproxy/protoc-gen-validate 2>/dev/null || echo "")
+        if [ -z "$PROTOC_GEN_VALIDATE_PATH" ] || [ ! -f "$PROTOC_GEN_VALIDATE_PATH/validate/validate.proto" ]; then
+          # Ищем через find в go/pkg/mod
+          FOUND_VALIDATE=$(find $HOME/go/pkg/mod -name "validate.proto" -path "*/validate/*" 2>/dev/null | head -1)
+          if [ -n "$FOUND_VALIDATE" ]; then
+            # Берем родительский каталог (на уровень выше от validate/)
+            PROTOC_GEN_VALIDATE_PATH=$(echo "$FOUND_VALIDATE" | xargs dirname | xargs dirname)
+          fi
+        fi
+        if [ -n "$PROTOC_GEN_VALIDATE_PATH" ] && [ -f "$PROTOC_GEN_VALIDATE_PATH/validate/validate.proto" ]; then
+          INCLUDE_PATHS="$INCLUDE_PATHS -I$PROTOC_GEN_VALIDATE_PATH"
+          echo "   Добавлен путь к protoc-gen-validate: $PROTOC_GEN_VALIDATE_PATH"
+        else
+          echo "   ⚠️  Предупреждение: путь к protoc-gen-validate не найден"
         fi
         
         echo "   Используем пути: $INCLUDE_PATHS"
