@@ -3,9 +3,11 @@ version: v1
 deps:
   - github.com/bufbuild/protovalidate@v0.3.1
   - github.com/googleapis/googleapis
+  - github.com/envoyproxy/protoc-gen-validate@v1.3.0
   # Примечание: protobuf (google/protobuf/*) доступен через protovalidate, 
   # поэтому не требуется явно добавлять github.com/protocolbuffers/protobuf
   # google/api/annotations.proto доступен через googleapis
+  # validate/validate.proto доступен через protoc-gen-validate
 
 generate:
   inputs:
@@ -20,8 +22,13 @@ generate:
       opt:
         - paths=source_relative
         - require_unimplemented_servers=false
+    - path: bin/protoc-gen-simple-validate
+      out: pkg/proto
+      opt:
+        - paths=source_relative
     # Примечание: protovalidate использует runtime валидацию через библиотеку buf.build/go/protovalidate
     # Отдельный плагин protoc-gen-validate может не понадобиться, так как валидация выполняется в runtime
+    # protoc-gen-simple-validate генерирует методы Validate() для protobuf сообщений
 
 lint:
   use:

@@ -6,7 +6,7 @@ package notes.v1;
 option go_package = "notes/v1;notesv1";
 
 import "google/protobuf/timestamp.proto";
-import "buf/validate/validate.proto";
+import "validate/validate.proto";
 import "google/api/annotations.proto";
 
 // NotesService предоставляет методы для управления заметками
@@ -61,14 +61,20 @@ service NotesService {
 // Запрос на создание заметки
 message CreateNoteRequest {
   string title = 1 [
-    (buf.validate.field).string = {
+    //(buf.validate.field).string = {
+    (validate.rules).string = {
       min_len: 5,
       max_len: 255
     }
   ];    // Заголовок заметки (обязательное, минимум 5 символов, максимум 255)
   string content = 2 [
-    (buf.validate.field).string.min_len = 10
+    //(buf.validate.field).string.min_len = 10
+    (validate.rules).string.min_len = 10
   ];  // Содержание заметки (обязательное, минимум 10 символов)
+  string email = 3 [
+    //(buf.validate.field).string.email = true
+    (validate.rules).string.email = true
+  ];  // Email адрес (обязательное, валидация формата email)
 }
 
 // Ответ с созданной заметкой

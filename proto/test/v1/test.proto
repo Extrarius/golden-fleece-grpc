@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package test.v1;
+
+option go_package = "test/v1;testv1";
+
+import "validate/validate.proto";
+
+// TestMessage - тестовое сообщение для проверки валидаций
+message TestMessage {
+  string title = 1 [
+    (validate.rules).string = {
+      min_len: 3,
+      max_len: 100
+    }
+  ];
+  
+  string email = 2 [
+    (validate.rules).string.email = true
+  ];
+  
+  string pattern_field = 3 [
+    (validate.rules).string.pattern = "^[A-Z][a-z]+$"
+  ];
+  
+  repeated string tags = 4 [
+    (validate.rules).repeated = {
+      min_items: 1,
+      max_items: 10
+    }
+  ];
+  
+  int32 age = 5 [
+    (validate.rules).int32 = {
+      gte: 18,
+      lte: 120
+    }
+  ];
+}
+
+// EmptyMessage - сообщение без валидаций
+message EmptyMessage {
+  string name = 1;
+}
+
