@@ -201,7 +201,7 @@ task install-simple-validate
 
 ### 2. Установка зависимостей
 
-Убедитесь, что установлен пакет `protoc-gen-validate`:
+Убедиться, что установлен пакет `protoc-gen-validate`:
 
 ```bash
 go get github.com/envoyproxy/protoc-gen-validate/validate
