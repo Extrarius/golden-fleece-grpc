@@ -8,6 +8,7 @@ vars:
   PROTOC_GEN_GO_GRPC: '{{.BIN_DIR}}/protoc-gen-go-grpc'
   PROTOC_GEN_VALIDATE: '{{.BIN_DIR}}/protoc-gen-validate'
   PROTOC_GEN_SIMPLE_VALIDATE: '{{.BIN_DIR}}/protoc-gen-simple-validate'
+  PROTOC_GEN_TEMPLATE_VALIDATE: '{{.BIN_DIR}}/protoc-gen-template-validate'
   PROTOC_GEN_GRPC_GATEWAY: '{{.BIN_DIR}}/protoc-gen-grpc-gateway'
   PROTOC_GEN_OPENAPIV2: '{{.BIN_DIR}}/protoc-gen-openapiv2'
   SWAGGER_OUT: '{{.ROOT_DIR}}/pkg/api'
@@ -89,37 +90,84 @@ tasks:
   install-simple-validate:
     desc: "Устанавливает protoc-gen-simple-validate"
     summary: |
-      Проверяет наличие protoc-gen-simple-validate в директории bin.
-      Если инструмент не найден, он будет автоматически установлен.
+      Устанавливает protoc-gen-simple-validate в директории bin.
       
       Плагин генерирует методы Validate() для protobuf сообщений на основе
       аннотаций validate.rules из protoc-gen-validate.
       
-      Использует go install для установки.
+      Использует go build для установки (всегда пересобирает для актуальности).
     cmds:
       - |
         mkdir -p {{.BIN_DIR}}
-        [ -f {{.PROTOC_GEN_SIMPLE_VALIDATE}} ] || {
-          echo '📦 Устанавливаем protoc-gen-simple-validate...'
-          GOBIN={{.BIN_DIR}} go install ./internal/tools/protoc-gen-simple-validate
-        }
+        echo '📦 Собираем protoc-gen-simple-validate...'
+        go build -o {{.PROTOC_GEN_SIMPLE_VALIDATE}} ./internal/tools/protoc-gen-simple-validate
     status:
       - test -x {{.PROTOC_GEN_SIMPLE_VALIDATE}}
 
-  generate:
-    desc: "Генерация Go кода из proto файлов (включая Gateway)"
-    deps: [ install-tools, install-simple-validate, mod-update ]
+  install-template-validate:
+    desc: "Устанавливает protoc-gen-template-validate"
+    summary: |
+      Устанавливает protoc-gen-template-validate в директории bin.
+      
+      Плагин генерирует методы Validate() для protobuf сообщений на основе
+      аннотаций validate.rules из protoc-gen-validate, используя text/template
+      для генерации кода.
+      
+      Использует go build для установки (всегда пересобирает для актуальности).
     cmds:
       - |
-        echo "📦 Генерируем основной proto код через easyp..."
-        {{.EASYP}} generate --path proto
+        mkdir -p {{.BIN_DIR}}
+        echo '📦 Собираем protoc-gen-template-validate...'
+        go build -o {{.PROTOC_GEN_TEMPLATE_VALIDATE}} ./internal/tools/protoc-gen-template-validate
+    status:
+      - test -x {{.PROTOC_GEN_TEMPLATE_VALIDATE}}
+
+  generate:
+    desc: "Генерация Go кода из proto файлов через simple-плагин (по умолчанию)"
+    deps: [ install-tools, install-simple-validate ]
+    # Примечание: mod-update убран из зависимостей для ускорения, запускайте отдельно при необходимости
+    cmds:
       - |
-        echo "🌐 Генерируем gRPC Gateway код и OpenAPI спецификацию..."
-        task generate:gateway
+        echo "📦 Генерируем основной proto код через easyp (simple-плагин)..."
+        EASYP_CFG=easyp-simple.yaml {{.EASYP}} generate --path proto
+      # Примечание: generate:gateway убран для ускорения и избежания зависаний, запускайте отдельно при необходимости
+      # - |
+      #   echo "🌐 Генерируем gRPC Gateway код и OpenAPI спецификацию..."
+      #   task generate:gateway
+
+  generate:simple:
+    desc: "Генерация Go кода из proto файлов через protoc-gen-simple-validate"
+    deps: [ install-tools, install-simple-validate ]
+    # Примечание: mod-update убран из зависимостей для ускорения, запускайте отдельно при необходимости
+    cmds:
+      - |
+        echo "📦 Генерируем основной proto код через easyp (simple-плагин)..."
+        EASYP_CFG=easyp-simple.yaml {{.EASYP}} generate --path proto
+      # Примечание: generate:gateway убран для ускорения и избежания зависаний, запускайте отдельно при необходимости
+      # - |
+      #   echo "🌐 Генерируем gRPC Gateway код и OpenAPI спецификацию..."
+      #   task generate:gateway
+
+  generate:template:
+    desc: "Генерация Go кода из proto файлов через protoc-gen-template-validate"
+    deps: [ install-tools, install-template-validate ]
+    # Примечание: mod-update убран из зависимостей для ускорения, запускайте отдельно при необходимости
+    cmds:
+      - |
+        echo "📦 Генерируем основной proto код через easyp (template-плагин)..."
+        EASYP_CFG=easyp-template.yaml {{.EASYP}} generate --path proto || {
+          echo "❌ Ошибка генерации. Проверьте, что плагин пересобран: task install-template-validate"
+          exit 1
+        }
+      # Примечание: generate:gateway убран для ускорения и избежания зависаний, запускайте отдельно при необходимости
+      # - |
+      #   echo "🌐 Генерируем gRPC Gateway код и OpenAPI спецификацию..."
+      #   task generate:gateway
 
   generate:gateway:
     desc: "Генерация gRPC Gateway кода и OpenAPI спецификации"
-    deps: [ install-tools, mod-update ]
+    deps: [ install-tools ]
+    # Примечание: mod-update убран из зависимостей для ускорения, запускайте отдельно при необходимости
     cmds:
       - |
         echo "🌐 Генерируем gRPC Gateway код и OpenAPI спецификацию..."

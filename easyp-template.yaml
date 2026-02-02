@@ -22,13 +22,12 @@ generate:
       opt:
         - paths=source_relative
         - require_unimplemented_servers=false
-    # ПРИМЕЧАНИЕ: Плагины валидации вынесены в отдельные конфигурации:
-    # - easyp-simple.yaml - использует protoc-gen-simple-validate
-    # - easyp-template.yaml - использует protoc-gen-template-validate
-    # Используйте: task generate:simple или task generate:template
-    # 
-    # Оба плагина генерируют ОДИНАКОВЫЙ результат в файлы *.pb.validate.go
-    # Можно переключаться между плагинами через разные задачи Taskfile
+    - path: bin/protoc-gen-template-validate
+      out: pkg/proto
+      opt:
+        - paths=source_relative
+    # protoc-gen-template-validate генерирует методы Validate() для protobuf сообщений (генерация через text/template)
+    # ВАЖНО: Генерирует тот же результат, что и protoc-gen-simple-validate
 
 lint:
   use:
